@@ -52,27 +52,28 @@ export default function UnitsPage() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        const [unitsData, tenantsData] = await Promise.all([
-          getUnits(),
-          getTenants(),
-        ]);
-        setUnits(unitsData);
-        setTenants(tenantsData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-         toast({
-          title: "Error",
-          description: "Failed to load data from the database.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [unitsData, tenantsData] = await Promise.all([
+        getUnits(),
+        getTenants(),
+      ]);
+      setUnits(unitsData);
+      setTenants(tenantsData);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+        toast({
+        title: "Error",
+        description: "Failed to load data from the database.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, [toast]);
   
@@ -88,29 +89,22 @@ export default function UnitsPage() {
 
   const handleUnassignTenant = async (unitToUpdate: Unit) => {
     if (!unitToUpdate.tenantId) return;
-
-    try {
-        await unassignTenantFromUnit(unitToUpdate.id, unitToUpdate.tenantId);
-
-        // Optimistically update UI
-        setUnits(units.map(u => 
-            u.id === unitToUpdate.id ? { ...u, status: 'available', tenantId: undefined } : u
-        ));
-        setTenants(tenants.map(t => 
-            t.id === unitToUpdate.tenantId ? { ...t, units: t.units.filter(uid => uid !== unitToUpdate.id) } : t
-        ));
-
-        toast({
-            title: "Success",
-            description: "Tenant unassigned successfully.",
-        });
-    } catch (error) {
-        console.error("Failed to unassign tenant:", error);
-        toast({
-            title: "Error",
-            description: "Could not unassign tenant.",
-            variant: "destructive",
-        });
+    if (window.confirm(`Are you sure you want to unassign the tenant from ${unitToUpdate.name}?`)) {
+      try {
+          await unassignTenantFromUnit(unitToUpdate.id, unitToUpdate.tenantId);
+          await loadData(); // Refresh all data
+          toast({
+              title: "Success",
+              description: "Tenant unassigned successfully.",
+          });
+      } catch (error) {
+          console.error("Failed to unassign tenant:", error);
+          toast({
+              title: "Error",
+              description: "Could not unassign tenant.",
+              variant: "destructive",
+          });
+      }
     }
   };
 
@@ -120,16 +114,7 @@ export default function UnitsPage() {
     try {
       const oldTenantId = selectedUnit.tenantId;
       await assignTenantToUnit(selectedUnit.id, selectedTenantId, oldTenantId);
-
-      // Optimistically update UI
-      setUnits(units.map(u => 
-          u.id === selectedUnit.id ? { ...u, status: 'rented', tenantId: selectedTenantId } : u
-      ));
-      setTenants(tenants.map(t => {
-          if (t.id === selectedTenantId) return { ...t, units: [...t.units, selectedUnit.id] };
-          if (t.id === oldTenantId) return { ...t, units: t.units.filter(uid => uid !== selectedUnit.id) };
-          return t;
-      }));
+      await loadData(); // Refresh all data
       
       setIsAssignDialogOpen(false);
       setSelectedUnit(null);
@@ -187,7 +172,9 @@ export default function UnitsPage() {
           </Button>
         </div>
         {isLoading ? (
-          <p>Loading units...</p>
+          <p>Loading units from Firestore...</p>
+        ) : units.length === 0 ? (
+          <p className="text-muted-foreground p-4">No units found. Add one to get started.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {units.map((unit) => (

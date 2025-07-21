@@ -46,7 +46,7 @@ export default function BillingPage() {
         console.error("Failed to fetch billing data:", error);
         toast({
             title: "Error",
-            description: "Failed to load billing data.",
+            description: "Failed to load billing data from the database.",
             variant: "destructive",
         });
       } finally {
@@ -92,7 +92,11 @@ export default function BillingPage() {
           <TableBody>
             {isLoading ? (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading invoices...</TableCell>
+                    <TableCell colSpan={6} className="text-center">Loading invoices from Firestore...</TableCell>
+                </TableRow>
+            ) : invoices.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center">No invoices found.</TableCell>
                 </TableRow>
             ) : (invoices
               .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime())

@@ -48,7 +48,7 @@ export default function DashboardPage() {
         console.error("Failed to load dashboard data:", error);
         toast({
           title: "Error",
-          description: "Failed to load dashboard data.",
+          description: "Failed to load dashboard data from the database.",
           variant: "destructive",
         });
       } finally {
@@ -79,7 +79,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
       </div>
-       {isLoading ? <p>Loading dashboard...</p> : (
+       {isLoading ? <p>Loading dashboard data from Firestore...</p> : (
       <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -153,50 +153,54 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tenant</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell>
-                        <div className="font-medium">
-                          {tenantsById[invoice.tenantId]?.name || 'N/A'}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {tenantsById[invoice.tenantId]?.email || 'N/A'}
-                        </div>
-                      </TableCell>
-                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>{format(invoice.dueDate, 'LLL dd, y')}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            invoice.status === 'paid'
-                              ? 'secondary'
-                              : invoice.status === 'unpaid'
-                              ? 'destructive'
-                              : 'outline'
-                          }
-                          className={
-                            invoice.status === 'paid'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                              : ''
-                          }
-                        >
-                          {invoice.status}
-                        </Badge>
-                      </TableCell>
+               {recentInvoices.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Tenant</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {recentInvoices.map((invoice) => (
+                      <TableRow key={invoice.id}>
+                        <TableCell>
+                          <div className="font-medium">
+                            {tenantsById[invoice.tenantId]?.name || 'N/A'}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {tenantsById[invoice.tenantId]?.email || 'N/A'}
+                          </div>
+                        </TableCell>
+                        <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                        <TableCell>{format(invoice.dueDate, 'LLL dd, y')}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              invoice.status === 'paid'
+                                ? 'secondary'
+                                : invoice.status === 'unpaid'
+                                ? 'destructive'
+                                : 'outline'
+                            }
+                            className={
+                              invoice.status === 'paid'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                : ''
+                            }
+                          >
+                            {invoice.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-sm text-muted-foreground p-4">No recent invoices found.</p>
+              )}
             </CardContent>
           </Card>
         </div>

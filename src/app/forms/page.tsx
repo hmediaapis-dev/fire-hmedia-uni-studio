@@ -66,7 +66,7 @@ export default function FormsPage() {
         console.error("Failed to load documents", error);
         toast({
             title: "Error",
-            description: "Failed to load documents.",
+            description: "Failed to load documents from the database.",
             variant: "destructive",
         });
       } finally {
@@ -143,7 +143,11 @@ export default function FormsPage() {
           <TableBody>
             {isLoading ? (
                 <TableRow>
-                    <TableCell colSpan={5} className="text-center">Loading documents...</TableCell>
+                    <TableCell colSpan={5} className="text-center">Loading documents from Firestore...</TableCell>
+                </TableRow>
+            ) : documents.length === 0 ? (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center">No documents found. Upload one to get started.</TableCell>
                 </TableRow>
             ) : (documents.map((doc) => (
               <TableRow key={doc.id}>

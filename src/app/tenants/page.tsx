@@ -65,34 +65,35 @@ export default function TenantsPage() {
     notes: '',
   });
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        const [tenantsData, unitsData, invoicesData] = await Promise.all([
-          getTenants(),
-          getUnits(),
-          getInvoices(),
-        ]);
-        setTenants(tenantsData);
-        setUnits(unitsData);
-        setInvoices(invoicesData);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load data from the database.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [tenantsData, unitsData, invoicesData] = await Promise.all([
+        getTenants(),
+        getUnits(),
+        getInvoices(),
+      ]);
+      setTenants(tenantsData);
+      setUnits(unitsData);
+      setInvoices(invoicesData);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load data from the database.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, [toast]);
 
   const handleEditClick = (tenant: Tenant) => {
-    setSelectedTenant(tenant);
+    setSelectedTenant({ ...tenant });
     setIsEditDialogOpen(true);
   };
   
@@ -106,6 +107,15 @@ export default function TenantsPage() {
   ) => {
     const { id, value } = e.target;
     setNewTenant((prev) => ({ ...prev, [id]: value }));
+  };
+  
+  const handleEditTenantInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { id, value } = e.target;
+    if (selectedTenant) {
+        setSelectedTenant(prev => prev ? ({ ...prev, [id.replace('edit-','')]: value }) : null);
+    }
   };
 
   const handleAddTenant = async () => {
@@ -141,6 +151,47 @@ export default function TenantsPage() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleUpdateTenant = async () => {
+    if (!selectedTenant) return;
+    try {
+        const { id, ...tenantData } = selectedTenant;
+        await updateTenant(id, tenantData);
+        await loadData(); // Refresh data
+        setIsEditDialogOpen(false);
+        toast({
+            title: "Success",
+            description: "Tenant updated successfully.",
+        });
+    } catch (error) {
+        console.error("Failed to update tenant:", error);
+        toast({
+            title: "Error",
+            description: "Could not update tenant.",
+            variant: "destructive",
+        });
+    }
+  };
+
+  const handleDeleteTenant = async (tenantId: string) => {
+     if (window.confirm("Are you sure you want to delete this tenant? This action cannot be undone.")) {
+        try {
+            await deleteTenant(tenantId);
+            await loadData();
+            toast({
+                title: "Success",
+                description: "Tenant deleted.",
+            });
+        } catch (error) {
+            console.error("Failed to delete tenant:", error);
+            toast({
+                title: "Error",
+                description: "Could not delete tenant.",
+                variant: "destructive",
+            });
+        }
+     }
   };
 
   const tenantUnits = viewingTenant ? units.filter(unit => viewingTenant.units.includes(unit.id)) : [];
@@ -234,9 +285,14 @@ export default function TenantsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={6} className="text-center">Loading tenants from Firestore...</TableCell>
                 </TableRow>
-              ) : tenants.map((tenant) => (
+              ) : tenants.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">No tenants found. Add one to get started.</TableCell>
+                </TableRow>
+              ) : (
+                tenants.map((tenant) => (
                 <TableRow 
                   key={tenant.id}
                   onClick={() => handleViewDetailsClick(tenant)}
@@ -276,19 +332,19 @@ export default function TenantsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => handleViewDetailsClick(tenant)}>View Details</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => handleEditClick(tenant)}>
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => handleViewDetailsClick(tenant)}>View Details</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteTenant(tenant.id)}>
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
             </TableBody>
           </Table>
         </div>
@@ -306,40 +362,43 @@ export default function TenantsPage() {
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="edit-name">Name</Label>
-                    <Input id="edit-name" defaultValue={selectedTenant.name} />
+                    <Input id="edit-name" value={selectedTenant.name} onChange={handleEditTenantInputChange}/>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="edit-email">Email</Label>
                     <Input
                       id="edit-email"
                       type="email"
-                      defaultValue={selectedTenant.email}
+                      value={selectedTenant.email}
+                      onChange={handleEditTenantInputChange}
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="edit-phone">Phone</Label>
-                    <Input id="edit-phone" defaultValue={selectedTenant.phone} />
+                    <Input id="edit-phone" value={selectedTenant.phone} onChange={handleEditTenantInputChange} />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="edit-balance">Balance</Label>
                     <Input
                       id="edit-balance"
                       type="number"
-                      defaultValue={selectedTenant.balance}
+                      value={selectedTenant.balance}
+                      onChange={handleEditTenantInputChange}
                     />
                   </div>
                    <div className="grid gap-2">
                     <Label htmlFor="edit-notes">Notes</Label>
                     <Textarea
                       id="edit-notes"
-                      defaultValue={selectedTenant.notes}
+                      value={selectedTenant.notes}
+                      onChange={handleEditTenantInputChange}
                     />
                   </div>
                 </div>
               )}
             <DialogFooter>
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-                <Button onClick={() => setIsEditDialogOpen(false)}>Save Changes</Button>
+                <Button onClick={handleUpdateTenant}>Save Changes</Button>
             </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -389,6 +448,7 @@ export default function TenantsPage() {
 
                     <div>
                         <h4 className="text-lg font-semibold mb-2">Rented Units</h4>
+                        {tenantUnits.length > 0 ? (
                         <div className="border rounded-lg">
                            <Table>
                                 <TableHeader>
@@ -409,10 +469,12 @@ export default function TenantsPage() {
                                 </TableBody>
                            </Table>
                         </div>
+                        ) : (<p className="text-sm text-muted-foreground">No units rented.</p>)}
                     </div>
 
                     <div>
                         <h4 className="text-lg font-semibold mb-2">Recent Invoices</h4>
+                        {tenantInvoices.length > 0 ? (
                         <div className="border rounded-lg">
                            <Table>
                                 <TableHeader>
@@ -439,6 +501,7 @@ export default function TenantsPage() {
                                 </TableBody>
                            </Table>
                         </div>
+                        ) : (<p className="text-sm text-muted-foreground">No recent invoices.</p>)}
                     </div>
                     
                      {viewingTenant.notes && (
