@@ -26,7 +26,9 @@ import {
   Download,
   Edit,
   Trash2,
-  Loader2
+  Loader2,
+  Eye,
+  Printer,
 } from 'lucide-react';
 import {
   Dialog,
@@ -85,7 +87,7 @@ export default function FormsPage() {
   
   useEffect(() => {
     loadDocuments();
-  }, [toast]);
+  }, []);
 
   const resetForm = () => {
     setTitle('');
@@ -97,6 +99,13 @@ export default function FormsPage() {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+  
+  const handlePrint = (url: string) => {
+    const printWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    printWindow?.addEventListener('load', () => {
+        printWindow?.print();
+    });
   };
 
   const handleUpload = async () => {
@@ -249,17 +258,27 @@ export default function FormsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
+                       <DropdownMenuItem asChild>
                          <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview
+                         </a>
+                      </DropdownMenuItem>
+                       <DropdownMenuItem onSelect={() => handlePrint(doc.url)}>
+                          <Printer className="mr-2 h-4 w-4" />
+                          Print
+                       </DropdownMenuItem>
+                       <DropdownMenuItem asChild>
+                         <a href={doc.url} target="_blank" rel="noopener noreferrer" download>
                             <Download className="mr-2 h-4 w-4" />
                             Download
                          </a>
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem disabled>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Details
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
                       <DropdownMenuItem className="text-destructive" disabled>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
