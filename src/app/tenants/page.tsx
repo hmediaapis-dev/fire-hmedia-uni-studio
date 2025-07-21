@@ -150,17 +150,16 @@ export default function TenantsPage() {
         </div>
       </div>
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0">
-          <Card className="border-0">
-            <CardHeader>
-              <CardTitle>Edit Tenant</CardTitle>
-              <CardDescription>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Tenant</DialogTitle>
+              <DialogDescription>
                 Update the details for {selectedTenant?.name}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+              </DialogDescription>
+            </DialogHeader>
+            
               {selectedTenant && (
-                <div className="grid gap-4">
+                <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name">Name</Label>
                     <Input id="name" defaultValue={selectedTenant.name} />
@@ -194,32 +193,30 @@ export default function TenantsPage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-             <DialogFooter className="px-6 pb-6">
+            <DialogFooter>
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
                 <Button onClick={() => setIsEditDialogOpen(false)}>Save Changes</Button>
             </DialogFooter>
-          </Card>
         </DialogContent>
       </Dialog>
 
        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-3xl p-0">
+        <DialogContent className="sm:max-w-3xl">
             {viewingTenant && (
-            <Card className="border-0">
-                <CardHeader className="flex flex-row items-start justify-between gap-4">
-                    <div>
-                        <CardTitle className="text-2xl">{viewingTenant.name}</CardTitle>
-                        <CardDescription>
-                            Joined on {format(viewingTenant.joinDate, 'MMMM d, yyyy')}
-                        </CardDescription>
+            <>
+                <DialogHeader>
+                    <DialogTitle className="text-2xl">{viewingTenant.name}</DialogTitle>
+                    <DialogDescription>
+                        Joined on {format(viewingTenant.joinDate, 'MMMM d, yyyy')}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-6 pt-4">
+                    <div className="flex items-center justify-between">
+                         <div className="text-right">
+                            <p className="text-sm text-muted-foreground">{viewingTenant.email}</p>
+                            <p className="text-sm text-muted-foreground">{viewingTenant.phone}</p>
+                        </div>
                     </div>
-                    <div className="text-right">
-                        <p className="text-sm text-muted-foreground">{viewingTenant.email}</p>
-                        <p className="text-sm text-muted-foreground">{viewingTenant.phone}</p>
-                    </div>
-                </CardHeader>
-                <CardContent className="grid gap-6">
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="flex items-center gap-3 rounded-lg border p-3">
                             <Warehouse className="h-6 w-6 text-muted-foreground" />
@@ -308,11 +305,11 @@ export default function TenantsPage() {
                      )}
 
 
-                </CardContent>
-                <DialogFooter className="px-6 pb-6">
+                </div>
+                <DialogFooter>
                     <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
                 </DialogFooter>
-            </Card>
+            </>
             )}
         </DialogContent>
       </Dialog>
