@@ -38,7 +38,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Tenant, Unit, Invoice } from '@/types';
 import { Separator } from '@/components/ui/separator';
 import { getTenants, addTenant, updateTenant, deleteTenant } from '@/services/tenants';
@@ -65,7 +65,7 @@ export default function TenantsPage() {
     notes: '',
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [tenantsData, unitsData, invoicesData] = await Promise.all([
@@ -86,11 +86,11 @@ export default function TenantsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadData();
-  }, [toast]);
+  }, [loadData]);
 
   const handleEditClick = (tenant: Tenant) => {
     setSelectedTenant({ ...tenant });
@@ -523,3 +523,5 @@ export default function TenantsPage() {
     </>
   );
 }
+
+    
