@@ -93,7 +93,11 @@ export default function TenantsPage() {
             </TableHeader>
             <TableBody>
               {mockTenants.map((tenant) => (
-                <TableRow key={tenant.id}>
+                <TableRow 
+                  key={tenant.id}
+                  onClick={() => handleViewDetailsClick(tenant)}
+                  className="cursor-pointer"
+                >
                   <TableCell className="font-medium">{tenant.name}</TableCell>
                   <TableCell>
                     <div className="font-mono text-sm">{tenant.email}</div>
@@ -114,7 +118,7 @@ export default function TenantsPage() {
                   <TableCell>
                     {format(tenant.joinDate, 'LLL dd, yyyy')}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
