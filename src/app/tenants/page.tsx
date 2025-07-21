@@ -27,6 +27,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +48,8 @@ export default function TenantsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
 
   const handleEditClick = (tenant: Tenant) => {
     setSelectedTenant(tenant);
@@ -71,10 +74,51 @@ export default function TenantsPage() {
               Manage your tenants and their information.
             </p>
           </div>
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Tenant
-          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Tenant
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add New Tenant</DialogTitle>
+                <DialogDescription>
+                  Enter the details for the new tenant.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="add-name">Name</Label>
+                  <Input id="add-name" placeholder="John Doe" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-email">Email</Label>
+                  <Input
+                    id="add-email"
+                    type="email"
+                    placeholder="john.doe@example.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-phone">Phone</Label>
+                  <Input id="add-phone" placeholder="555-123-4567" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-notes">Notes</Label>
+                  <Textarea
+                    id="add-notes"
+                    placeholder="Initial notes about the tenant..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={() => setIsAddDialogOpen(false)}>Save Tenant</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="border rounded-lg">
@@ -202,14 +246,14 @@ export default function TenantsPage() {
 
        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{viewingTenant?.name}</DialogTitle>
+              <DialogDescription>
+                Joined on {viewingTenant ? format(viewingTenant.joinDate, 'MMMM d, yyyy') : ''}
+              </DialogDescription>
+            </DialogHeader>
             {viewingTenant && (
             <>
-                <DialogHeader>
-                    <DialogTitle className="text-2xl">{viewingTenant.name}</DialogTitle>
-                    <DialogDescription>
-                        Joined on {format(viewingTenant.joinDate, 'MMMM d, yyyy')}
-                    </DialogDescription>
-                </DialogHeader>
                 <div className="grid gap-6 pt-4">
                     <div className="flex items-center justify-between">
                          <div className="text-right">
@@ -316,3 +360,5 @@ export default function TenantsPage() {
     </>
   );
 }
+
+    
