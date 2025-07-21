@@ -44,12 +44,18 @@ import type { Tenant } from '@/types';
 import { Separator } from '@/components/ui/separator';
 
 export default function TenantsPage() {
+  const [tenants, setTenants] = useState<Tenant[]>(mockTenants);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-
+  const [newTenant, setNewTenant] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    notes: '',
+  });
 
   const handleEditClick = (tenant: Tenant) => {
     setSelectedTenant(tenant);
@@ -59,6 +65,32 @@ export default function TenantsPage() {
   const handleViewDetailsClick = (tenant: Tenant) => {
     setViewingTenant(tenant);
     setIsViewDialogOpen(true);
+  };
+
+  const handleNewTenantInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { id, value } = e.target;
+    setNewTenant((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleAddTenant = () => {
+    if (!newTenant.name || !newTenant.email) {
+      // Basic validation
+      alert('Name and Email are required.');
+      return;
+    }
+    const newTenantData: Tenant = {
+      id: `t${Date.now()}`,
+      ...newTenant,
+      units: [],
+      rent: 0,
+      balance: 0,
+      joinDate: new Date(),
+    };
+    setTenants((prev) => [...prev, newTenantData]);
+    setNewTenant({ name: '', email: '', phone: '', notes: '' });
+    setIsAddDialogOpen(false);
   };
 
   const tenantUnits = viewingTenant ? mockUnits.filter(unit => viewingTenant.units.includes(unit.id)) : [];
@@ -90,32 +122,46 @@ export default function TenantsPage() {
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="add-name">Name</Label>
-                  <Input id="add-name" placeholder="John Doe" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="add-email">Email</Label>
+                  <Label htmlFor="name">Name</Label>
                   <Input
-                    id="add-email"
-                    type="email"
-                    placeholder="john.doe@example.com"
+                    id="name"
+                    placeholder="John Doe"
+                    value={newTenant.name}
+                    onChange={handleNewTenantInputChange}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="add-phone">Phone</Label>
-                  <Input id="add-phone" placeholder="555-123-4567" />
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john.doe@example.com"
+                    value={newTenant.email}
+                    onChange={handleNewTenantInputChange}
+                  />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="add-notes">Notes</Label>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    placeholder="555-123-4567"
+                    value={newTenant.phone}
+                    onChange={handleNewTenantInputChange}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="notes">Notes</Label>
                   <Textarea
-                    id="add-notes"
+                    id="notes"
                     placeholder="Initial notes about the tenant..."
+                    value={newTenant.notes}
+                    onChange={handleNewTenantInputChange}
                   />
                 </div>
               </div>
               <DialogFooter>
                   <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={() => setIsAddDialogOpen(false)}>Save Tenant</Button>
+                  <Button onClick={handleAddTenant}>Save Tenant</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -136,7 +182,7 @@ export default function TenantsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockTenants.map((tenant) => (
+              {tenants.map((tenant) => (
                 <TableRow 
                   key={tenant.id}
                   onClick={() => handleViewDetailsClick(tenant)}
@@ -205,33 +251,33 @@ export default function TenantsPage() {
               {selectedTenant && (
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" defaultValue={selectedTenant.name} />
+                    <Label htmlFor="edit-name">Name</Label>
+                    <Input id="edit-name" defaultValue={selectedTenant.name} />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="edit-email">Email</Label>
                     <Input
-                      id="email"
+                      id="edit-email"
                       type="email"
                       defaultValue={selectedTenant.email}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" defaultValue={selectedTenant.phone} />
+                    <Label htmlFor="edit-phone">Phone</Label>
+                    <Input id="edit-phone" defaultValue={selectedTenant.phone} />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="balance">Balance</Label>
+                    <Label htmlFor="edit-balance">Balance</Label>
                     <Input
-                      id="balance"
+                      id="edit-balance"
                       type="number"
                       defaultValue={selectedTenant.balance}
                     />
                   </div>
                    <div className="grid gap-2">
-                    <Label htmlFor="notes">Notes</Label>
+                    <Label htmlFor="edit-notes">Notes</Label>
                     <Textarea
-                      id="notes"
+                      id="edit-notes"
                       defaultValue={selectedTenant.notes}
                     />
                   </div>
@@ -360,5 +406,3 @@ export default function TenantsPage() {
     </>
   );
 }
-
-    
