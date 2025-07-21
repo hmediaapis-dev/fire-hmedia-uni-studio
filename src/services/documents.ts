@@ -3,6 +3,7 @@ import type { Document } from '@/types';
 import {
   collection,
   getDocs,
+  addDoc,
   Timestamp,
 } from 'firebase/firestore';
 
@@ -27,4 +28,10 @@ export async function getDocuments(): Promise<Document[]> {
   const documentsCol = collection(db, 'documents').withConverter(documentConverter);
   const snapshot = await getDocs(documentsCol);
   return snapshot.docs.map((doc) => doc.data());
+}
+
+export async function addDocument(docData: Omit<Document, 'id'>): Promise<string> {
+    const documentsCol = collection(db, 'documents').withConverter(documentConverter);
+    const docRef = await addDoc(documentsCol, docData);
+    return docRef.id;
 }

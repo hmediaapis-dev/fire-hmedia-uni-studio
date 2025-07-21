@@ -25,7 +25,8 @@ import {
   FileImage,
   Download,
   Edit,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -41,8 +42,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useEffect } from 'react';
 import type { Document } from '@/types';
-import { getDocuments } from '@/services/documents';
+import { getDocuments, addDocument } from '@/services/documents';
 import { useToast } from "@/hooks/use-toast";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 
 const fileTypeIcons: Record<string, JSX.Element> = {
   pdf: <FileText className="h-5 w-5 text-red-500" />,
@@ -55,26 +58,101 @@ export default function FormsPage() {
   const { toast } = useToast();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  // Form state
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+
+  const loadDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const docs = await getDocuments();
+      setDocuments(docs);
+    } catch (error) {
+      console.error("Failed to load documents", error);
+      toast({
+          title: "Error",
+          description: "Failed to load documents from the database.",
+          variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   useEffect(() => {
-    async function loadDocuments() {
-      try {
-        setIsLoading(true);
-        const docs = await getDocuments();
-        setDocuments(docs);
-      } catch (error) {
-        console.error("Failed to load documents", error);
-        toast({
-            title: "Error",
-            description: "Failed to load documents from the database.",
-            variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }
     loadDocuments();
   }, [toast]);
+
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setFile(null);
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file || !title) {
+        toast({
+            title: "Validation Error",
+            description: "Title and a file are required to upload.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    setIsUploading(true);
+    try {
+        const storage = getStorage();
+        const fileExtension = file.name.split('.').pop() || '';
+        const storageRef = ref(storage, `documents/${Date.now()}_${file.name}`);
+
+        // Upload file
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        // Add document metadata to Firestore
+        const newDocData: Omit<Document, 'id'> = {
+            title,
+            description,
+            fileType: fileExtension,
+            uploadDate: new Date(),
+            url: downloadURL,
+        };
+        
+        await addDocument(newDocData);
+
+        toast({
+            title: "Success",
+            description: "Document uploaded successfully.",
+        });
+
+        // Refresh documents list
+        await loadDocuments();
+        
+        // Close dialog and reset form
+        setIsDialogOpen(false);
+        resetForm();
+
+    } catch (error) {
+        console.error("Upload failed", error);
+        toast({
+            title: "Upload Error",
+            description: "Failed to upload the document. Please check console for details.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsUploading(false);
+    }
+  };
 
 
   return (
@@ -86,7 +164,7 @@ export default function FormsPage() {
             Manage all your stored documents.
           </p>
         </div>
-        <Dialog>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -105,23 +183,27 @@ export default function FormsPage() {
                 <Label htmlFor="title" className="text-right">
                   Title
                 </Label>
-                <Input id="title" className="col-span-3" />
+                <Input id="title" className="col-span-3" value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="description" className="text-right">
                   Description
                 </Label>
-                <Textarea id="description" className="col-span-3" />
+                <Textarea id="description" className="col-span-3" value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="file" className="text-right">
                   File
                 </Label>
-                <Input id="file" type="file" className="col-span-3" />
+                <Input id="file" type="file" className="col-span-3" onChange={handleFileChange} />
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">Upload</Button>
+               <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isUploading}>Cancel</Button>
+               <Button onClick={handleUpload} disabled={isUploading}>
+                {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isUploading ? 'Uploading...' : 'Upload'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -167,16 +249,18 @@ export default function FormsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
+                      <DropdownMenuItem asChild>
+                         <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                         </a>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem disabled>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Details
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
+                      <DropdownMenuItem className="text-destructive" disabled>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
