@@ -44,7 +44,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useEffect } from 'react';
 import type { Document } from '@/types';
-import { getDocuments, addDocument } from '@/services/documents';
+import { getDocuments, addDocument, deleteDocument } from '@/services/documents';
 import { useToast } from "@/hooks/use-toast";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -164,6 +164,25 @@ export default function FormsPage() {
     }
   };
 
+  const handleDelete = async (docToDelete: Document) => {
+    if(window.confirm(`Are you sure you want to delete "${docToDelete.title}"? This action cannot be undone.`)) {
+        try {
+            await deleteDocument(docToDelete.id, docToDelete.url);
+            toast({
+                title: "Success",
+                description: "Document deleted successfully."
+            });
+            await loadDocuments(); // Refresh the list
+        } catch (error) {
+            console.error("Failed to delete document:", error);
+            toast({
+                title: "Error",
+                description: "Could not delete the document.",
+                variant: "destructive",
+            });
+        }
+    }
+  };
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -280,7 +299,7 @@ export default function FormsPage() {
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" disabled>
+                      <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(doc)}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>

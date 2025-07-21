@@ -1,11 +1,14 @@
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
 import type { Document } from '@/types';
 import {
   collection,
   getDocs,
   addDoc,
+  deleteDoc,
+  doc,
   Timestamp,
 } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 
 const documentConverter = {
   toFirestore: (data: Omit<Document, 'id'>) => {
@@ -34,4 +37,14 @@ export async function addDocument(docData: Omit<Document, 'id'>): Promise<string
     const documentsCol = collection(db, 'documents').withConverter(documentConverter);
     const docRef = await addDoc(documentsCol, docData);
     return docRef.id;
+}
+
+export async function deleteDocument(docId: string, fileUrl: string): Promise<void> {
+    // 1. Delete the file from Cloud Storage
+    const fileRef = ref(storage, fileUrl);
+    await deleteObject(fileRef);
+
+    // 2. Delete the document from Firestore
+    const docRef = doc(db, 'documents', docId);
+    await deleteDoc(docRef);
 }
