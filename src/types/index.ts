@@ -36,4 +36,5 @@ export type Document = {
   fileType: 'pdf' | 'docx' | 'png' | 'jpg' | string; // Allow for more file types
   uploadDate: Date;
   url: string;
+  storagePath: string; // Path to the file in Firebase Storage
 };

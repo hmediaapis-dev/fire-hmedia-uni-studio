@@ -55,6 +55,7 @@ const fileTypeIcons: Record<string, JSX.Element> = {
   docx: <FileText className="h-5 w-5 text-blue-500" />,
   png: <FileImage className="h-5 w-5 text-green-500" />,
   jpg: <FileImage className="h-5 w-5 text-yellow-500" />,
+  jpeg: <FileImage className="h-5 w-5 text-yellow-500" />,
 };
 
 export default function FormsPage() {
@@ -123,7 +124,8 @@ export default function FormsPage() {
     try {
         const storage = getStorage();
         const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-        const storageRef = ref(storage, `documents/${Date.now()}_${file.name}`);
+        const storagePath = `documents/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
 
         // Upload file
         const snapshot = await uploadBytes(storageRef, file);
@@ -136,6 +138,7 @@ export default function FormsPage() {
             fileType: fileExtension,
             uploadDate: new Date(),
             url: downloadURL,
+            storagePath: storagePath,
         };
         
         await addDocument(newDocData);
@@ -167,7 +170,7 @@ export default function FormsPage() {
   const handleDelete = async (docToDelete: Document) => {
     if(window.confirm(`Are you sure you want to delete "${docToDelete.title}"? This action cannot be undone.`)) {
         try {
-            await deleteDocument(docToDelete.id, docToDelete.url);
+            await deleteDocument(docToDelete.id, docToDelete.storagePath);
             toast({
                 title: "Success",
                 description: "Document deleted successfully."
@@ -314,5 +317,3 @@ export default function FormsPage() {
     </div>
   );
 }
-
-    

@@ -39,9 +39,9 @@ export async function addDocument(docData: Omit<Document, 'id'>): Promise<string
     return docRef.id;
 }
 
-export async function deleteDocument(docId: string, fileUrl: string): Promise<void> {
-    // 1. Delete the file from Cloud Storage
-    const fileRef = ref(storage, fileUrl);
+export async function deleteDocument(docId: string, storagePath: string): Promise<void> {
+    // 1. Delete the file from Cloud Storage using its path
+    const fileRef = ref(storage, storagePath);
     await deleteObject(fileRef);
 
     // 2. Delete the document from Firestore
