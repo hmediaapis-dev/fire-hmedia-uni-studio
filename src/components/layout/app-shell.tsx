@@ -60,13 +60,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             {navItems.map((item) => (
               <SidebarMenuItem key={item.href}>
-                <Link href={item.href} legacyBehavior passHref>
+                <Link href={item.href} passHref>
                   <SidebarMenuButton
+                    asChild
                     isActive={pathname === item.href}
                     tooltip={item.label}
                   >
-                    <item.icon />
-                    <span>{item.label}</span>
+                    <div>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </div>
                   </SidebarMenuButton>
                 </Link>
               </SidebarMenuItem>
@@ -76,13 +79,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <Link href="/settings" legacyBehavior passHref>
+              <Link href="/settings" passHref>
                 <SidebarMenuButton
+                  asChild
                   isActive={pathname === '/settings'}
                   tooltip="Settings"
                 >
-                  <Settings />
-                  <span>Settings</span>
+                  <div>
+                    <Settings />
+                    <span>Settings</span>
+                  </div>
                 </SidebarMenuButton>
               </Link>
             </SidebarMenuItem>
