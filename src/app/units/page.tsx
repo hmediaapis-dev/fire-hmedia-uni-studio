@@ -56,8 +56,36 @@ export default function UnitsPage() {
     setIsAssignDialogOpen(true);
   };
 
+  const handleUnassignTenant = (unitToUpdate: Unit) => {
+    if (!unitToUpdate.tenantId) return;
+
+    const oldTenantId = unitToUpdate.tenantId;
+
+    // Update unit
+    const updatedUnits = units.map((unit) =>
+      unit.id === unitToUpdate.id
+        ? { ...unit, status: 'available' as const, tenantId: undefined }
+        : unit
+    );
+    setUnits(updatedUnits);
+
+    // Update old tenant
+    const updatedTenants = tenants.map((tenant) => {
+      if (tenant.id === oldTenantId) {
+        return {
+          ...tenant,
+          units: tenant.units.filter((uid) => uid !== unitToUpdate.id),
+        };
+      }
+      return tenant;
+    });
+    setTenants(updatedTenants);
+  };
+
   const handleAssignTenant = () => {
     if (!selectedUnit || !selectedTenantId) return;
+
+    const oldTenantId = selectedUnit.tenantId;
 
     // Update unit status and tenantId
     const updatedUnits = units.map((unit) =>
@@ -67,15 +95,25 @@ export default function UnitsPage() {
     );
     setUnits(updatedUnits);
 
-    // Add unit to tenant's unit list
-    const updatedTenants = tenants.map((tenant) =>
-      tenant.id === selectedTenantId
-        ? { ...tenant, units: [...tenant.units, selectedUnit.id] }
-        : tenant
-    );
+    // Update tenants' unit lists
+    const updatedTenants = tenants.map((tenant) => {
+      // Add unit to new tenant
+      if (tenant.id === selectedTenantId) {
+        // Avoid adding duplicate unit id
+        if (!tenant.units.includes(selectedUnit.id)) {
+          return { ...tenant, units: [...tenant.units, selectedUnit.id] };
+        }
+      }
+      // Remove unit from old tenant
+      if (tenant.id === oldTenantId) {
+        return {
+          ...tenant,
+          units: tenant.units.filter((uid) => uid !== selectedUnit.id),
+        };
+      }
+      return tenant;
+    });
     setTenants(updatedTenants);
-
-    // Unassign from old tenant if there was one (not in this flow, but good practice)
 
     setIsAssignDialogOpen(false);
     setSelectedUnit(null);
@@ -137,12 +175,20 @@ export default function UnitsPage() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                     <DropdownMenuItem>Edit Unit</DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleAssignTenantClick(unit)}
-                      disabled={unit.status === 'rented'}
-                    >
-                      Assign Tenant
-                    </DropdownMenuItem>
+                     {unit.status === 'rented' ? (
+                      <>
+                        <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                          Re-assign Tenant
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleUnassignTenant(unit)}>
+                          Unassign Tenant
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                       <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                        Assign Tenant
+                       </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-destructive">
                       Delete Unit
@@ -206,7 +252,9 @@ export default function UnitsPage() {
                   <SelectValue placeholder="Select a tenant..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((tenant) => (
+                  {tenants
+                    .filter(tenant => tenant.id !== selectedUnit?.tenantId)
+                    .map((tenant) => (
                     <SelectItem key={tenant.id} value={tenant.id}>
                       {tenant.name}
                     </SelectItem>
