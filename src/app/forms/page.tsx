@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { mockDocuments } from '@/data/mock-data';
 import { format } from 'date-fns';
 import {
   MoreHorizontal,
@@ -40,8 +39,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useState, useEffect } from 'react';
+import type { Document } from '@/types';
+import { getDocuments } from '@/services/documents';
+import { useToast } from "@/hooks/use-toast";
 
-const fileTypeIcons = {
+const fileTypeIcons: Record<string, JSX.Element> = {
   pdf: <FileText className="h-5 w-5 text-red-500" />,
   docx: <FileText className="h-5 w-5 text-blue-500" />,
   png: <FileImage className="h-5 w-5 text-green-500" />,
@@ -49,6 +52,31 @@ const fileTypeIcons = {
 };
 
 export default function FormsPage() {
+  const { toast } = useToast();
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    async function loadDocuments() {
+      try {
+        setIsLoading(true);
+        const docs = await getDocuments();
+        setDocuments(docs);
+      } catch (error) {
+        console.error("Failed to load documents", error);
+        toast({
+            title: "Error",
+            description: "Failed to load documents.",
+            variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadDocuments();
+  }, [toast]);
+
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between">
@@ -113,9 +141,13 @@ export default function FormsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockDocuments.map((doc) => (
+            {isLoading ? (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center">Loading documents...</TableCell>
+                </TableRow>
+            ) : (documents.map((doc) => (
               <TableRow key={doc.id}>
-                <TableCell>{fileTypeIcons[doc.fileType]}</TableCell>
+                <TableCell>{fileTypeIcons[doc.fileType] || <FileText className="h-5 w-5" />}</TableCell>
                 <TableCell className="font-medium">{doc.title}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                   {doc.description}
@@ -148,7 +180,7 @@ export default function FormsPage() {
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            )))}
           </TableBody>
         </Table>
       </div>

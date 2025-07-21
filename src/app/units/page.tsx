@@ -17,10 +17,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { mockUnits, mockTenants } from '@/data/mock-data';
 import { MoreVertical, PlusCircle, User, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Unit, Tenant } from '@/types';
 import {
   Dialog,
@@ -38,14 +37,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getUnits, assignTenantToUnit, unassignTenantFromUnit } from '@/services/units';
+import { getTenants } from '@/services/tenants';
+import { useToast } from "@/hooks/use-toast";
+
 
 export default function UnitsPage() {
-  const [units, setUnits] = useState<Unit[]>(mockUnits);
-  const [tenants, setTenants] = useState<Tenant[]>(mockTenants);
+  const { toast } = useToast();
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
 
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const [unitsData, tenantsData] = await Promise.all([
+          getUnits(),
+          getTenants(),
+        ]);
+        setUnits(unitsData);
+        setTenants(tenantsData);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+         toast({
+          title: "Error",
+          description: "Failed to load data from the database.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [toast]);
+  
   const tenantsById = Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
   );
@@ -56,67 +86,65 @@ export default function UnitsPage() {
     setIsAssignDialogOpen(true);
   };
 
-  const handleUnassignTenant = (unitToUpdate: Unit) => {
+  const handleUnassignTenant = async (unitToUpdate: Unit) => {
     if (!unitToUpdate.tenantId) return;
 
-    const oldTenantId = unitToUpdate.tenantId;
+    try {
+        await unassignTenantFromUnit(unitToUpdate.id, unitToUpdate.tenantId);
 
-    // Update unit
-    const updatedUnits = units.map((unit) =>
-      unit.id === unitToUpdate.id
-        ? { ...unit, status: 'available' as const, tenantId: undefined }
-        : unit
-    );
-    setUnits(updatedUnits);
+        // Optimistically update UI
+        setUnits(units.map(u => 
+            u.id === unitToUpdate.id ? { ...u, status: 'available', tenantId: undefined } : u
+        ));
+        setTenants(tenants.map(t => 
+            t.id === unitToUpdate.tenantId ? { ...t, units: t.units.filter(uid => uid !== unitToUpdate.id) } : t
+        ));
 
-    // Update old tenant
-    const updatedTenants = tenants.map((tenant) => {
-      if (tenant.id === oldTenantId) {
-        return {
-          ...tenant,
-          units: tenant.units.filter((uid) => uid !== unitToUpdate.id),
-        };
-      }
-      return tenant;
-    });
-    setTenants(updatedTenants);
+        toast({
+            title: "Success",
+            description: "Tenant unassigned successfully.",
+        });
+    } catch (error) {
+        console.error("Failed to unassign tenant:", error);
+        toast({
+            title: "Error",
+            description: "Could not unassign tenant.",
+            variant: "destructive",
+        });
+    }
   };
 
-  const handleAssignTenant = () => {
+  const handleAssignTenant = async () => {
     if (!selectedUnit || !selectedTenantId) return;
 
-    const oldTenantId = selectedUnit.tenantId;
+    try {
+      const oldTenantId = selectedUnit.tenantId;
+      await assignTenantToUnit(selectedUnit.id, selectedTenantId, oldTenantId);
 
-    // Update unit status and tenantId
-    const updatedUnits = units.map((unit) =>
-      unit.id === selectedUnit.id
-        ? { ...unit, status: 'rented' as const, tenantId: selectedTenantId }
-        : unit
-    );
-    setUnits(updatedUnits);
-
-    // Update tenants' unit lists
-    const updatedTenants = tenants.map((tenant) => {
-      // Add unit to new tenant
-      if (tenant.id === selectedTenantId) {
-        // Avoid adding duplicate unit id
-        if (!tenant.units.includes(selectedUnit.id)) {
-          return { ...tenant, units: [...tenant.units, selectedUnit.id] };
-        }
-      }
-      // Remove unit from old tenant
-      if (tenant.id === oldTenantId) {
-        return {
-          ...tenant,
-          units: tenant.units.filter((uid) => uid !== selectedUnit.id),
-        };
-      }
-      return tenant;
-    });
-    setTenants(updatedTenants);
-
-    setIsAssignDialogOpen(false);
-    setSelectedUnit(null);
+      // Optimistically update UI
+      setUnits(units.map(u => 
+          u.id === selectedUnit.id ? { ...u, status: 'rented', tenantId: selectedTenantId } : u
+      ));
+      setTenants(tenants.map(t => {
+          if (t.id === selectedTenantId) return { ...t, units: [...t.units, selectedUnit.id] };
+          if (t.id === oldTenantId) return { ...t, units: t.units.filter(uid => uid !== selectedUnit.id) };
+          return t;
+      }));
+      
+      setIsAssignDialogOpen(false);
+      setSelectedUnit(null);
+      toast({
+        title: "Success",
+        description: "Tenant assigned successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to assign tenant:", error);
+      toast({
+        title: "Error",
+        description: "Could not assign tenant.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusClass = (status: 'available' | 'rented' | 'maintenance') => {
@@ -158,83 +186,87 @@ export default function UnitsPage() {
             Add Unit
           </Button>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {units.map((unit) => (
-            <Card
-              key={unit.id}
-              className={cn('flex flex-col', getStatusClass(unit.status))}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem>Edit Unit</DropdownMenuItem>
-                     {unit.status === 'rented' ? (
-                      <>
-                        <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                          Re-assign Tenant
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUnassignTenant(unit)}>
-                          Unassign Tenant
-                        </DropdownMenuItem>
-                      </>
-                    ) : (
-                       <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                        Assign Tenant
-                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive">
-                      Delete Unit
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <div className="flex justify-between items-center mb-4">
-                  <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
-                      {unit.status}
-                  </Badge>
-                  <div className="text-xl font-semibold">
-                    ${unit.rent.toFixed(2)}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      /mo
-                    </span>
+        {isLoading ? (
+          <p>Loading units...</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {units.map((unit) => (
+              <Card
+                key={unit.id}
+                className={cn('flex flex-col', getStatusClass(unit.status))}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem>Edit Unit</DropdownMenuItem>
+                       {unit.status === 'rented' ? (
+                        <>
+                          <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                            Re-assign Tenant
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleUnassignTenant(unit)}>
+                            Unassign Tenant
+                          </DropdownMenuItem>
+                        </>
+                      ) : (
+                         <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                          Assign Tenant
+                         </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive">
+                        Delete Unit
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <div className="flex justify-between items-center mb-4">
+                    <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
+                        {unit.status}
+                    </Badge>
+                    <div className="text-xl font-semibold">
+                      ${unit.rent.toFixed(2)}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        /mo
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
-                <p className="text-sm text-muted-foreground">
-                  Gate Code: <span className="font-mono">{unit.gateCode}</span>
-                </p>
-              </CardContent>
-              <CardFooter>
-                {unit.status === 'rented' && unit.tenantId && (
-                  <div className="flex items-center text-sm">
-                    <User className="h-4 w-4 mr-2 text-primary" />
-                    <span>{tenantsById[unit.tenantId]?.name || 'N/A'}</span>
-                  </div>
-                )}
-                {unit.status === 'maintenance' && (
-                  <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400">
-                    <Wrench className="h-4 w-4 mr-2" />
-                    <span>Under Maintenance</span>
-                  </div>
-                )}
-                {unit.status === 'available' && (
-                  <div className="flex items-center text-sm text-green-600 dark:text-green-400">
-                    <span>Available for rent</span>
-                  </div>
-                )}
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                  <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Gate Code: <span className="font-mono">{unit.gateCode}</span>
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  {unit.status === 'rented' && unit.tenantId && (
+                    <div className="flex items-center text-sm">
+                      <User className="h-4 w-4 mr-2 text-primary" />
+                      <span>{tenantsById[unit.tenantId]?.name || 'N/A'}</span>
+                    </div>
+                  )}
+                  {unit.status === 'maintenance' && (
+                    <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400">
+                      <Wrench className="h-4 w-4 mr-2" />
+                      <span>Under Maintenance</span>
+                    </div>
+                  )}
+                  {unit.status === 'available' && (
+                    <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+                      <span>Available for rent</span>
+                    </div>
+                  )}
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent className="sm:max-w-md">

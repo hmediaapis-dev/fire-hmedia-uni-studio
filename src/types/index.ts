@@ -33,7 +33,7 @@ export type Document = {
   id: string;
   title: string;
   description: string;
-  fileType: 'pdf' | 'docx' | 'png' | 'jpg';
+  fileType: 'pdf' | 'docx' | 'png' | 'jpg' | string; // Allow for more file types
   uploadDate: Date;
   url: string;
 };

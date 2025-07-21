@@ -18,13 +18,46 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { mockInvoices, mockTenants } from '@/data/mock-data';
 import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import type { Invoice, Tenant } from '@/types';
+import { getInvoices } from '@/services/invoices';
+import { getTenants } from '@/services/tenants';
+import { useToast } from "@/hooks/use-toast";
 
 export default function BillingPage() {
+  const { toast } = useToast();
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const [invoicesData, tenantsData] = await Promise.all([
+            getInvoices(),
+            getTenants()
+        ]);
+        setInvoices(invoicesData);
+        setTenants(tenantsData);
+      } catch (error) {
+        console.error("Failed to fetch billing data:", error);
+        toast({
+            title: "Error",
+            description: "Failed to load billing data.",
+            variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [toast]);
+
   const tenantsById = Object.fromEntries(
-    mockTenants.map((tenant) => [tenant.id, tenant])
+    tenants.map((tenant) => [tenant.id, tenant])
   );
 
   return (
@@ -57,7 +90,11 @@ export default function BillingPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockInvoices
+            {isLoading ? (
+                <TableRow>
+                    <TableCell colSpan={6} className="text-center">Loading invoices...</TableCell>
+                </TableRow>
+            ) : (invoices
               .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime())
               .map((invoice) => (
                 <TableRow key={invoice.id}>
@@ -119,7 +156,7 @@ export default function BillingPage() {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+              )))}
           </TableBody>
         </Table>
       </div>

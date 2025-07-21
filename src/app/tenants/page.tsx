@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { mockInvoices, mockTenants, mockUnits } from '@/data/mock-data';
 import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText } from 'lucide-react';
 import {
@@ -39,12 +38,21 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useState } from 'react';
-import type { Tenant } from '@/types';
+import { useState, useEffect } from 'react';
+import type { Tenant, Unit, Invoice } from '@/types';
 import { Separator } from '@/components/ui/separator';
+import { getTenants, addTenant, updateTenant, deleteTenant } from '@/services/tenants';
+import { getUnits } from '@/services/units';
+import { getInvoices } from '@/services/invoices';
+import { useToast } from "@/hooks/use-toast";
 
 export default function TenantsPage() {
-  const [tenants, setTenants] = useState<Tenant[]>(mockTenants);
+  const { toast } = useToast();
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
@@ -56,6 +64,32 @@ export default function TenantsPage() {
     phone: '',
     notes: '',
   });
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const [tenantsData, unitsData, invoicesData] = await Promise.all([
+          getTenants(),
+          getUnits(),
+          getInvoices(),
+        ]);
+        setTenants(tenantsData);
+        setUnits(unitsData);
+        setInvoices(invoicesData);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load data from the database.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [toast]);
 
   const handleEditClick = (tenant: Tenant) => {
     setSelectedTenant(tenant);
@@ -74,27 +108,43 @@ export default function TenantsPage() {
     setNewTenant((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleAddTenant = () => {
+  const handleAddTenant = async () => {
     if (!newTenant.name || !newTenant.email) {
-      // Basic validation
-      alert('Name and Email are required.');
+      toast({
+        title: "Validation Error",
+        description: "Name and Email are required.",
+        variant: "destructive",
+      });
       return;
     }
-    const newTenantData: Tenant = {
-      id: `t${Date.now()}`,
-      ...newTenant,
-      units: [],
-      rent: 0,
-      balance: 0,
-      joinDate: new Date(),
-    };
-    setTenants((prev) => [...prev, newTenantData]);
-    setNewTenant({ name: '', email: '', phone: '', notes: '' });
-    setIsAddDialogOpen(false);
+    try {
+      const newTenantData: Omit<Tenant, 'id'> = {
+        ...newTenant,
+        units: [],
+        rent: 0,
+        balance: 0,
+        joinDate: new Date(),
+      };
+      const tenantId = await addTenant(newTenantData);
+      setTenants((prev) => [...prev, { id: tenantId, ...newTenantData }]);
+      setNewTenant({ name: '', email: '', phone: '', notes: '' });
+      setIsAddDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Tenant added successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to add tenant:", error);
+      toast({
+        title: "Error",
+        description: "Could not add new tenant.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const tenantUnits = viewingTenant ? mockUnits.filter(unit => viewingTenant.units.includes(unit.id)) : [];
-  const tenantInvoices = viewingTenant ? mockInvoices.filter(invoice => invoice.tenantId === viewingTenant.id).slice(0, 5) : [];
+  const tenantUnits = viewingTenant ? units.filter(unit => viewingTenant.units.includes(unit.id)) : [];
+  const tenantInvoices = viewingTenant ? invoices.filter(invoice => invoice.tenantId === viewingTenant.id).slice(0, 5) : [];
 
   return (
     <>
@@ -182,7 +232,11 @@ export default function TenantsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tenants.map((tenant) => (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                </TableRow>
+              ) : tenants.map((tenant) => (
                 <TableRow 
                   key={tenant.id}
                   onClick={() => handleViewDetailsClick(tenant)}

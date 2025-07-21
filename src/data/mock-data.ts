@@ -1,5 +1,9 @@
+// This file is no longer used for core data but can be kept for reference
+// or for seeding your database initially.
+// The application now fetches data from Firebase Firestore.
+
 import type { Tenant, Unit, Invoice, Document } from '@/types';
-import { subMonths, addMonths } from 'date-fns';
+import { subMonths } from 'date-fns';
 
 const now = new Date();
 
