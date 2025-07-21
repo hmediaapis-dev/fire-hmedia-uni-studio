@@ -51,6 +51,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const fileTypeIcons: Record<string, JSX.Element> = {
   pdf: <FileText className="h-5 w-5 text-red-500" />,
+  doc: <FileText className="h-5 w-5 text-blue-500" />,
   docx: <FileText className="h-5 w-5 text-blue-500" />,
   png: <FileImage className="h-5 w-5 text-green-500" />,
   jpg: <FileImage className="h-5 w-5 text-yellow-500" />,
@@ -121,7 +122,7 @@ export default function FormsPage() {
     setIsUploading(true);
     try {
         const storage = getStorage();
-        const fileExtension = file.name.split('.').pop() || '';
+        const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
         const storageRef = ref(storage, `documents/${Date.now()}_${file.name}`);
 
         // Upload file
@@ -242,7 +243,7 @@ export default function FormsPage() {
                 </TableRow>
             ) : (documents.map((doc) => (
               <TableRow key={doc.id}>
-                <TableCell>{fileTypeIcons[doc.fileType] || <FileText className="h-5 w-5" />}</TableCell>
+                <TableCell>{fileTypeIcons[doc.fileType.toLowerCase()] || <FileText className="h-5 w-5" />}</TableCell>
                 <TableCell className="font-medium">{doc.title}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                   {doc.description}
