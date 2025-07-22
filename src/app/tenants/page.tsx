@@ -58,6 +58,8 @@ export default function TenantsPage() {
   const [viewingTenant, setViewingTenant] = useState<Tenant | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   const [newTenant, setNewTenant] = useState({
     name: '',
     email: '',
@@ -101,6 +103,11 @@ export default function TenantsPage() {
   const handleViewDetailsClick = (tenant: Tenant) => {
     setViewingTenant(tenant);
     setIsViewDialogOpen(true);
+  };
+  
+  const handleDeleteClick = (tenant: Tenant) => {
+    setTenantToDelete(tenant);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleNewTenantInputChange = (
@@ -175,24 +182,26 @@ export default function TenantsPage() {
     }
   };
 
-  const handleDeleteTenant = async (tenantId: string) => {
-     if (window.confirm("Are you sure you want to delete this tenant? This action cannot be undone.")) {
-        try {
-            await deleteTenant(tenantId);
-            await loadData();
-            toast({
-                title: "Success",
-                description: "Tenant deleted.",
-            });
-        } catch (error) {
-            console.error("Failed to delete tenant:", error);
-            toast({
-                title: "Error",
-                description: "Could not delete tenant.",
-                variant: "destructive",
-            });
-        }
-     }
+  const handleConfirmDelete = async () => {
+    if (!tenantToDelete) return;
+    try {
+      await deleteTenant(tenantToDelete.id);
+      await loadData();
+      toast({
+        title: "Success",
+        description: `Tenant "${tenantToDelete.name}" deleted.`,
+      });
+    } catch (error) {
+      console.error("Failed to delete tenant:", error);
+      toast({
+        title: "Error",
+        description: "Could not delete tenant.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setTenantToDelete(null);
+    }
   };
 
   const tenantUnits = viewingTenant ? units.filter(unit => viewingTenant.units.includes(unit.id)) : [];
@@ -347,7 +356,7 @@ export default function TenantsPage() {
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteTenant(tenant.id)}>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(tenant)}>
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -397,7 +406,7 @@ export default function TenantsPage() {
                       id="edit-balance"
                       type="number"
                       value={selectedTenant.balance}
-                      onChange={handleEditTenantInputChange}
+                      onChange={(e) => setSelectedTenant(prev => prev ? ({ ...prev, balance: parseFloat(e.target.value) || 0 }) : null)}
                     />
                   </div>
                    <div className="grid gap-2">
@@ -540,6 +549,32 @@ export default function TenantsPage() {
             )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Tenant</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{tenantToDelete?.name}</strong>? 
+              This will permanently remove them from the system. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Delete Tenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
+    
