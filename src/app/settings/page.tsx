@@ -12,8 +12,106 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { useState, useEffect } from 'react';
+import { getSettings, updateSettings } from '@/services/settings';
+import type { Settings } from '@/types';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+
+
+const defaultSettings: Settings = {
+  id: 'main',
+  contactEmail: '',
+  contactPhone: '',
+  mainGateCode: '',
+  autoBilling: true,
+  invoiceDay: 1,
+  defaultRates: {
+    '10x10': 0,
+    '10x15': 0,
+    '15x20': 0,
+  }
+};
 
 export default function SettingsPage() {
+  const { toast } = useToast();
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        setIsLoading(true);
+        const savedSettings = await getSettings();
+        if (savedSettings) {
+          setSettings(savedSettings);
+        }
+      } catch (error) {
+        console.error("Failed to load settings", error);
+        toast({
+          title: "Error",
+          description: "Could not load settings from the database.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, [toast]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setSettings(prev => ({ ...prev, [id]: value }));
+  };
+  
+  const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    const rateKey = id.replace('rate-', '');
+    setSettings(prev => ({
+        ...prev,
+        defaultRates: {
+            ...prev.defaultRates,
+            [rateKey]: parseFloat(value) || 0,
+        }
+    }))
+  };
+
+  const handleSwitchChange = (checked: boolean) => {
+    setSettings(prev => ({ ...prev, autoBilling: checked }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+        await updateSettings(settings);
+        toast({
+            title: "Success",
+            description: "Settings saved successfully."
+        });
+    } catch (error) {
+        console.error("Failed to save settings", error);
+        toast({
+            title: "Error",
+            description: "Could not save settings.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+             <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+             </div>
+        </div>
+    );
+  }
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div>
@@ -32,27 +130,30 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="contact-email">Contact Email</Label>
+              <Label htmlFor="contactEmail">Contact Email</Label>
               <Input
-                id="contact-email"
+                id="contactEmail"
                 placeholder="contact@example.com"
-                defaultValue="support@hmedia.com"
+                value={settings.contactEmail}
+                onChange={handleInputChange}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contact-phone">Contact Phone</Label>
+              <Label htmlFor="contactPhone">Contact Phone</Label>
               <Input
-                id="contact-phone"
+                id="contactPhone"
                 placeholder="(555) 123-4567"
-                defaultValue="(555) 867-5309"
+                value={settings.contactPhone}
+                onChange={handleInputChange}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="main-gate-code">Main Gate Code</Label>
+              <Label htmlFor="mainGateCode">Main Gate Code</Label>
               <Input
-                id="main-gate-code"
+                id="mainGateCode"
                 placeholder="****"
-                defaultValue="1984"
+                value={settings.mainGateCode}
+                onChange={handleInputChange}
               />
             </div>
           </CardContent>
@@ -68,7 +169,7 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="auto-billing" className="text-base">
+                <Label htmlFor="autoBilling" className="text-base">
                   Automated Monthly Billing
                 </Label>
                 <p className="text-sm text-muted-foreground">
@@ -76,16 +177,21 @@ export default function SettingsPage() {
                   month.
                 </p>
               </div>
-              <Switch id="auto-billing" defaultChecked />
+              <Switch 
+                id="autoBilling" 
+                checked={settings.autoBilling} 
+                onCheckedChange={handleSwitchChange}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invoice-day">Invoice Day of Month</Label>
+              <Label htmlFor="invoiceDay">Invoice Day of Month</Label>
               <Input
-                id="invoice-day"
+                id="invoiceDay"
                 type="number"
                 min="1"
                 max="28"
-                defaultValue="1"
+                value={settings.invoiceDay}
+                onChange={(e) => setSettings(prev => ({ ...prev, invoiceDay: parseInt(e.target.value, 10) || 1}))}
                 className="w-24"
               />
               <p className="text-xs text-muted-foreground">
@@ -103,7 +209,9 @@ export default function SettingsPage() {
                   <Input
                     id="rate-10x10"
                     placeholder="$"
-                    defaultValue="750.00"
+                    type="number"
+                    value={settings.defaultRates['10x10']}
+                    onChange={handleRateChange}
                   />
                 </div>
                 <div className="space-y-1">
@@ -113,7 +221,9 @@ export default function SettingsPage() {
                   <Input
                     id="rate-10x15"
                     placeholder="$"
-                    defaultValue="900.00"
+                    type="number"
+                    value={settings.defaultRates['10x15']}
+                    onChange={handleRateChange}
                   />
                 </div>
                 <div className="space-y-1">
@@ -123,7 +233,9 @@ export default function SettingsPage() {
                   <Input
                     id="rate-15x20"
                     placeholder="$"
-                    defaultValue="1100.00"
+                    type="number"
+                    value={settings.defaultRates['15x20']}
+                    onChange={handleRateChange}
                   />
                 </div>
               </div>
@@ -132,7 +244,10 @@ export default function SettingsPage() {
         </Card>
 
         <div className="flex justify-end">
-          <Button>Save Changes</Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Changes
+          </Button>
         </div>
       </div>
     </div>

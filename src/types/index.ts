@@ -39,3 +39,15 @@ export type Document = {
   url: string;
   storagePath: string; // Path to the file in Firebase Storage
 };
+
+export type Settings = {
+  id: 'main';
+  contactEmail: string;
+  contactPhone: string;
+  mainGateCode: string;
+  autoBilling: boolean;
+  invoiceDay: number;
+  defaultRates: {
+    [key: string]: number;
+  };
+};
