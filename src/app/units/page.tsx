@@ -78,7 +78,10 @@ export default function UnitsPage() {
         getUnits(),
         getTenants(),
       ]);
-      setUnits(unitsData);
+      const sortedUnits = unitsData.sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+      );
+      setUnits(sortedUnits);
       setTenants(tenantsData);
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -538,5 +541,3 @@ export default function UnitsPage() {
     </>
   );
 }
-
-    
