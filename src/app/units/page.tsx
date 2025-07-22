@@ -39,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit, updateUnit } from '@/services/units';
+import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit, updateUnit, deleteUnit } from '@/services/units';
 import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -56,11 +56,13 @@ export default function UnitsPage() {
   const [isAddUnitDialogOpen, setIsAddUnitDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUnassignDialogOpen, setIsUnassignDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   // Data states
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [unitToEdit, setUnitToEdit] = useState<Unit | null>(null);
   const [unitToUnassign, setUnitToUnassign] = useState<Unit | null>(null);
+  const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [newUnit, setNewUnit] = useState({
       name: '',
@@ -113,6 +115,11 @@ export default function UnitsPage() {
     setUnitToUnassign(unit);
     setIsUnassignDialogOpen(true);
   };
+  
+  const handleDeleteClick = (unit: Unit) => {
+    setUnitToDelete(unit);
+    setIsDeleteDialogOpen(true);
+  };
 
   const handleConfirmUnassign = async () => {
     if (!unitToUnassign || !unitToUnassign.tenantId) return;
@@ -134,6 +141,28 @@ export default function UnitsPage() {
         setIsUnassignDialogOpen(false);
         setUnitToUnassign(null);
       }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!unitToDelete) return;
+    try {
+      await deleteUnit(unitToDelete.id, unitToDelete.tenantId);
+      await loadData();
+      toast({
+        title: "Success",
+        description: `Unit "${unitToDelete.name}" deleted successfully.`,
+      });
+    } catch (error) {
+      console.error("Failed to delete unit:", error);
+      toast({
+        title: "Error",
+        description: "Could not delete the unit.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setUnitToDelete(null);
+    }
   };
 
   const handleAssignTenant = async () => {
@@ -335,7 +364,7 @@ export default function UnitsPage() {
                          </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive">
+                      <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(unit)}>
                         Delete Unit
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -474,6 +503,34 @@ export default function UnitsPage() {
             </Button>
             <Button variant="destructive" onClick={handleConfirmUnassign}>
               Confirm Unassign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Unit Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Unit</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete{' '}
+              <strong>{unitToDelete?.name}</strong>? This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+            >
+              Delete Unit
             </Button>
           </DialogFooter>
         </DialogContent>

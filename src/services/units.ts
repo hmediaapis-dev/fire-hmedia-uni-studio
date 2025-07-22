@@ -10,6 +10,7 @@ import {
   arrayRemove,
   runTransaction,
   addDoc,
+  deleteDoc,
   deleteField,
 } from 'firebase/firestore';
 
@@ -40,6 +41,22 @@ export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
 export async function updateUnit(unitId: string, unitData: Partial<Omit<Unit, 'id'>>): Promise<void> {
     const unitRef = doc(db, 'units', unitId);
     await updateDoc(unitRef, unitData);
+}
+
+export async function deleteUnit(unitId: string, tenantId?: string): Promise<void> {
+    const batch = writeBatch(db);
+    const unitRef = doc(db, 'units', unitId);
+
+    // 1. Delete the unit document
+    batch.delete(unitRef);
+
+    // 2. If the unit was assigned to a tenant, remove it from the tenant's list
+    if (tenantId) {
+        const tenantRef = doc(db, 'tenants', tenantId);
+        batch.update(tenantRef, { units: arrayRemove(unitId) });
+    }
+
+    await batch.commit();
 }
 
 
