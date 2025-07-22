@@ -8,7 +8,8 @@ import {
   writeBatch,
   arrayUnion,
   arrayRemove,
-  runTransaction
+  runTransaction,
+  addDoc
 } from 'firebase/firestore';
 
 const unitConverter = {
@@ -28,6 +29,13 @@ export async function getUnits(): Promise<Unit[]> {
   const snapshot = await getDocs(unitsCol);
   return snapshot.docs.map((doc) => doc.data());
 }
+
+export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
+    const unitsCol = collection(db, 'units').withConverter(unitConverter);
+    const docRef = await addDoc(unitsCol, unitData);
+    return docRef.id;
+}
+
 
 export async function assignTenantToUnit(unitId: string, tenantId: string, oldTenantId?: string): Promise<void> {
     const batch = writeBatch(db);

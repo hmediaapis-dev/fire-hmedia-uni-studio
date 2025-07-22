@@ -37,9 +37,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getUnits, assignTenantToUnit, unassignTenantFromUnit } from '@/services/units';
+import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit } from '@/services/units';
 import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
+import { Input } from '@/components/ui/input';
 
 
 export default function UnitsPage() {
@@ -49,8 +50,15 @@ export default function UnitsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isAddUnitDialogOpen, setIsAddUnitDialogOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
+  const [newUnit, setNewUnit] = useState({
+      name: '',
+      size: '',
+      rent: 0,
+      gateCode: '',
+  });
 
   const loadData = async () => {
     try {
@@ -75,7 +83,7 @@ export default function UnitsPage() {
 
   useEffect(() => {
     loadData();
-  }, [toast]);
+  }, []);
   
   const tenantsById = Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
@@ -131,6 +139,42 @@ export default function UnitsPage() {
       });
     }
   };
+  
+  const handleNewUnitInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setNewUnit(prev => ({...prev, [id]: id === 'rent' ? parseFloat(value) || 0 : value}));
+  };
+
+  const handleAddUnit = async () => {
+    if (!newUnit.name || !newUnit.size || newUnit.rent <= 0) {
+        toast({
+            title: "Validation Error",
+            description: "Unit Name, Size, and a valid Rent amount are required.",
+            variant: "destructive",
+        });
+        return;
+    }
+    try {
+        await addUnit({
+            ...newUnit,
+            status: 'available',
+        });
+        await loadData(); // Refresh data
+        setIsAddUnitDialogOpen(false);
+        setNewUnit({ name: '', size: '', rent: 0, gateCode: '' }); // Reset form
+        toast({
+            title: "Success",
+            description: "New unit added successfully.",
+        });
+    } catch (error) {
+        console.error("Failed to add unit:", error);
+        toast({
+            title: "Error",
+            description: "Could not add new unit.",
+            variant: "destructive",
+        });
+    }
+  };
 
   const getStatusClass = (status: 'available' | 'rented' | 'maintenance') => {
     switch (status) {
@@ -166,10 +210,44 @@ export default function UnitsPage() {
               View and manage all your units.
             </p>
           </div>
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Unit
-          </Button>
+          <Dialog open={isAddUnitDialogOpen} onOpenChange={setIsAddUnitDialogOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add Unit
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Add New Unit</DialogTitle>
+                    <DialogDescription>
+                        Enter the details for the new unit. It will be marked as 'available'.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="name">Unit Name (e.g., Unit 101)</Label>
+                        <Input id="name" value={newUnit.name} onChange={handleNewUnitInputChange} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="size">Size (e.g., 10x10)</Label>
+                        <Input id="size" value={newUnit.size} onChange={handleNewUnitInputChange} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="rent">Monthly Rent ($)</Label>
+                        <Input id="rent" type="number" value={newUnit.rent} onChange={handleNewUnitInputChange} />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="gateCode">Gate Code</Label>
+                        <Input id="gateCode" value={newUnit.gateCode} onChange={handleNewUnitInputChange} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddUnitDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleAddUnit}>Save Unit</Button>
+                </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
         {isLoading ? (
           <p>Loading units from Firestore...</p>

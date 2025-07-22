@@ -168,8 +168,16 @@ export default function FormsPage() {
     }
   };
 
-  const handleDelete = async (docToDelete: Document) => {
+  // DELETE MODAL
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  /*old delete function*/ 
+  /*const handleDelete = async (docToDelete: Document) => {
+    console.log("handleDelete called", docToDelete);
+    console.log("Attempting confirm");
     if(window.confirm(`Are you sure you want to delete "${docToDelete.title}"? This action cannot be undone.`)) {
+      console.log("Confirmed!");
         try {
             await deleteDocument(docToDelete.id, docToDelete.storagePath);
             toast({
@@ -186,7 +194,8 @@ export default function FormsPage() {
             });
         }
     }
-  };
+  };*/
+
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -303,7 +312,13 @@ export default function FormsPage() {
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onSelect={() => handleDelete(doc)}>
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => {
+                          setDocumentToDelete(doc);
+                          setIsConfirmOpen(true);
+                        }}
+                      >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </DropdownMenuItem>
@@ -315,6 +330,50 @@ export default function FormsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{documentToDelete?.title}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!documentToDelete) return;
+                try {
+                  await deleteDocument(documentToDelete.id, documentToDelete.storagePath);
+                  toast({
+                    title: "Success",
+                    description: "Document deleted successfully.",
+                  });
+                  await loadDocuments();
+                } catch (error) {
+                  console.error("Failed to delete document:", error);
+                  toast({
+                    title: "Error",
+                    description: "Could not delete the document.",
+                    variant: "destructive",
+                  });
+                } finally {
+                  setIsConfirmOpen(false);
+                  setDocumentToDelete(null);
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
+    
   );
 }
