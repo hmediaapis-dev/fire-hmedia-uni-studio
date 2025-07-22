@@ -9,7 +9,8 @@ import {
   arrayUnion,
   arrayRemove,
   runTransaction,
-  addDoc
+  addDoc,
+  deleteField,
 } from 'firebase/firestore';
 
 const unitConverter = {
@@ -68,7 +69,7 @@ export async function unassignTenantFromUnit(unitId: string, tenantId: string): 
     const tenantRef = doc(db, 'tenants', tenantId);
 
     // Update unit
-    batch.update(unitRef, { status: 'available', tenantId: '' }); // Or delete tenantId field
+    batch.update(unitRef, { status: 'available', tenantId: deleteField() });
 
     // Remove unit from tenant
     batch.update(tenantRef, { units: arrayRemove(unitId) });
