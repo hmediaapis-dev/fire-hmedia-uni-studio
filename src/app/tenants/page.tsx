@@ -76,7 +76,10 @@ export default function TenantsPage() {
         getUnits(),
         getInvoices(),
       ]);
-      setTenants(tenantsData);
+      const sortedTenants = tenantsData.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+      setTenants(sortedTenants);
       setUnits(unitsData);
       setInvoices(invoicesData);
     } catch (error) {
@@ -151,6 +154,7 @@ export default function TenantsPage() {
         title: "Success",
         description: "Tenant added successfully.",
       });
+      await loadData();
     } catch (error) {
       console.error("Failed to add tenant:", error);
       toast({
