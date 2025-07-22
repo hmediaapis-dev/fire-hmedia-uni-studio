@@ -3,6 +3,7 @@ export type Tenant = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   units: string[];
   rent: number;
   balance: number;

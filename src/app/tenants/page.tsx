@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText, Home } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -62,6 +62,7 @@ export default function TenantsPage() {
     name: '',
     email: '',
     phone: '',
+    address: '',
     notes: '',
   });
 
@@ -137,7 +138,7 @@ export default function TenantsPage() {
       };
       const tenantId = await addTenant(newTenantData);
       setTenants((prev) => [...prev, { id: tenantId, ...newTenantData }]);
-      setNewTenant({ name: '', email: '', phone: '', notes: '' });
+      setNewTenant({ name: '', email: '', phone: '', address: '', notes: '' });
       setIsAddDialogOpen(false);
       toast({
         title: "Success",
@@ -247,6 +248,15 @@ export default function TenantsPage() {
                     id="phone"
                     placeholder="555-123-4567"
                     value={newTenant.phone}
+                    onChange={handleNewTenantInputChange}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    placeholder="123 Main St, Anytown, USA"
+                    value={newTenant.address}
                     onChange={handleNewTenantInputChange}
                   />
                 </div>
@@ -377,6 +387,10 @@ export default function TenantsPage() {
                     <Label htmlFor="edit-phone">Phone</Label>
                     <Input id="edit-phone" value={selectedTenant.phone} onChange={handleEditTenantInputChange} />
                   </div>
+                   <div className="grid gap-2">
+                    <Label htmlFor="edit-address">Address</Label>
+                    <Input id="edit-address" value={selectedTenant.address} onChange={handleEditTenantInputChange} />
+                  </div>
                   <div className="grid gap-2">
                     <Label htmlFor="edit-balance">Balance</Label>
                     <Input
@@ -414,10 +428,16 @@ export default function TenantsPage() {
             {viewingTenant && (
             <>
                 <div className="grid gap-6 pt-4">
-                    <div className="flex items-center justify-between">
-                         <div className="text-right">
+                     <div className="grid grid-cols-2">
+                        <div>
                             <p className="text-sm text-muted-foreground">{viewingTenant.email}</p>
                             <p className="text-sm text-muted-foreground">{viewingTenant.phone}</p>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-sm text-muted-foreground flex items-center justify-end gap-2">
+                                <Home className="h-4 w-4" /> 
+                                {viewingTenant.address}
+                            </p>
                         </div>
                     </div>
                     <div className="grid md:grid-cols-3 gap-4">
@@ -523,5 +543,3 @@ export default function TenantsPage() {
     </>
   );
 }
-
-    
