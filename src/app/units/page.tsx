@@ -38,7 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit } from '@/services/units';
+import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit, updateUnit } from '@/services/units';
 import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
@@ -50,9 +50,14 @@ export default function UnitsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Dialog states
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isAddUnitDialogOpen, setIsAddUnitDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  
+  // Data states
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
+  const [unitToEdit, setUnitToEdit] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [newUnit, setNewUnit] = useState({
       name: '',
@@ -94,6 +99,11 @@ export default function UnitsPage() {
     setSelectedUnit(unit);
     setSelectedTenantId('');
     setIsAssignDialogOpen(true);
+  };
+  
+  const handleEditClick = (unit: Unit) => {
+    setUnitToEdit({ ...unit }); // Create a copy to edit
+    setIsEditDialogOpen(true);
   };
 
   const handleUnassignTenant = async (unitToUpdate: Unit) => {
@@ -146,6 +156,13 @@ export default function UnitsPage() {
     setNewUnit(prev => ({...prev, [id]: id === 'rent' ? parseFloat(value) || 0 : value}));
   };
 
+  const handleEditUnitInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!unitToEdit) return;
+    const { id, value } = e.target;
+    const fieldName = id.replace('edit-', ''); // remove 'edit-' prefix
+    setUnitToEdit(prev => ({ ...prev!, [fieldName]: fieldName === 'rent' ? parseFloat(value) || 0 : value }));
+  };
+
   const handleAddUnit = async () => {
     if (!newUnit.name || !newUnit.size || newUnit.rent <= 0) {
         toast({
@@ -175,6 +192,28 @@ export default function UnitsPage() {
             variant: "destructive",
         });
     }
+  };
+
+  const handleUpdateUnit = async () => {
+      if (!unitToEdit) return;
+      try {
+        const { id, ...dataToUpdate } = unitToEdit;
+        await updateUnit(id, dataToUpdate);
+        await loadData();
+        setIsEditDialogOpen(false);
+        setUnitToEdit(null);
+        toast({
+            title: "Success",
+            description: "Unit updated successfully."
+        });
+      } catch (error) {
+          console.error("Failed to update unit:", error);
+          toast({
+              title: "Error",
+              description: "Could not update the unit.",
+              variant: "destructive"
+          });
+      }
   };
 
   const getStatusClass = (status: 'available' | 'rented' | 'maintenance') => {
@@ -271,7 +310,7 @@ export default function UnitsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem>Edit Unit</DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handleEditClick(unit)}>Edit Unit</DropdownMenuItem>
                        {unit.status === 'rented' ? (
                         <>
                           <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
@@ -334,6 +373,7 @@ export default function UnitsPage() {
           </div>
         )}
       </div>
+      {/* Assign Tenant Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -368,6 +408,42 @@ export default function UnitsPage() {
             <Button onClick={handleAssignTenant} disabled={!selectedTenantId}>
               Assign Tenant
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Unit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {unitToEdit?.name}</DialogTitle>
+            <DialogDescription>
+              Update the details for this unit.
+            </DialogDescription>
+          </DialogHeader>
+          {unitToEdit && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                  <Label htmlFor="edit-name">Unit Name</Label>
+                  <Input id="edit-name" value={unitToEdit.name} onChange={handleEditUnitInputChange} />
+              </div>
+              <div className="grid gap-2">
+                  <Label htmlFor="edit-size">Size</Label>
+                  <Input id="edit-size" value={unitToEdit.size} onChange={handleEditUnitInputChange} />
+              </div>
+              <div className="grid gap-2">
+                  <Label htmlFor="edit-rent">Monthly Rent ($)</Label>
+                  <Input id="edit-rent" type="number" value={unitToEdit.rent} onChange={handleEditUnitInputChange} />
+              </div>
+              <div className="grid gap-2">
+                  <Label htmlFor="edit-gateCode">Gate Code</Label>
+                  <Input id="edit-gateCode" value={unitToEdit.gateCode} onChange={handleEditUnitInputChange} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdateUnit}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

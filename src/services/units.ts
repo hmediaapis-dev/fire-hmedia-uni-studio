@@ -36,6 +36,11 @@ export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
     return docRef.id;
 }
 
+export async function updateUnit(unitId: string, unitData: Partial<Omit<Unit, 'id'>>): Promise<void> {
+    const unitRef = doc(db, 'units', unitId);
+    await updateDoc(unitRef, unitData);
+}
+
 
 export async function assignTenantToUnit(unitId: string, tenantId: string, oldTenantId?: string): Promise<void> {
     const batch = writeBatch(db);
