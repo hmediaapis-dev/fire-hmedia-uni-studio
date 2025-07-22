@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from '@/components/ui/button';
 import {
@@ -54,10 +55,12 @@ export default function UnitsPage() {
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isAddUnitDialogOpen, setIsAddUnitDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isUnassignDialogOpen, setIsUnassignDialogOpen] = useState(false);
   
   // Data states
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [unitToEdit, setUnitToEdit] = useState<Unit | null>(null);
+  const [unitToUnassign, setUnitToUnassign] = useState<Unit | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [newUnit, setNewUnit] = useState({
       name: '',
@@ -105,12 +108,16 @@ export default function UnitsPage() {
     setUnitToEdit({ ...unit }); // Create a copy to edit
     setIsEditDialogOpen(true);
   };
+  
+  const handleUnassignClick = (unit: Unit) => {
+    setUnitToUnassign(unit);
+    setIsUnassignDialogOpen(true);
+  };
 
-  const handleUnassignTenant = async (unitToUpdate: Unit) => {
-    if (!unitToUpdate.tenantId) return;
-    if (window.confirm(`Are you sure you want to unassign the tenant from ${unitToUpdate.name}?`)) {
+  const handleConfirmUnassign = async () => {
+    if (!unitToUnassign || !unitToUnassign.tenantId) return;
       try {
-          await unassignTenantFromUnit(unitToUpdate.id, unitToUpdate.tenantId);
+          await unassignTenantFromUnit(unitToUnassign.id, unitToUnassign.tenantId);
           await loadData(); // Refresh all data
           toast({
               title: "Success",
@@ -123,8 +130,10 @@ export default function UnitsPage() {
               description: "Could not unassign tenant.",
               variant: "destructive",
           });
+      } finally {
+        setIsUnassignDialogOpen(false);
+        setUnitToUnassign(null);
       }
-    }
   };
 
   const handleAssignTenant = async () => {
@@ -316,7 +325,7 @@ export default function UnitsPage() {
                           <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
                             Re-assign Tenant
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleUnassignTenant(unit)}>
+                          <DropdownMenuItem onClick={() => handleUnassignClick(unit)}>
                             Unassign Tenant
                           </DropdownMenuItem>
                         </>
@@ -373,6 +382,7 @@ export default function UnitsPage() {
           </div>
         )}
       </div>
+
       {/* Assign Tenant Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -447,6 +457,29 @@ export default function UnitsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unassign Tenant Confirmation Dialog */}
+      <Dialog open={isUnassignDialogOpen} onOpenChange={setIsUnassignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Unassignment</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to unassign the tenant from {' '}
+              <strong>{unitToUnassign?.name}</strong>? This will make the unit available.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUnassignDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmUnassign}>
+              Confirm Unassign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
+
+    
