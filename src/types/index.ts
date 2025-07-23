@@ -1,3 +1,4 @@
+
 export type Tenant = {
   id: string;
   name: string;
@@ -25,10 +26,12 @@ export type Unit = {
 export type Invoice = {
   id: string;
   tenantId: string;
+  unitId?: string;
   amount: number;
   dueDate: Date;
   paidDate?: Date;
   status: 'paid' | 'unpaid' | 'void';
+  createdAt?: Date;
 };
 
 export type Document = {

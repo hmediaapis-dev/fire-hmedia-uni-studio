@@ -1,3 +1,4 @@
+
 import { db } from '@/lib/firebase';
 import type { Invoice } from '@/types';
 import {
@@ -12,6 +13,7 @@ const invoiceConverter = {
       ...data,
       dueDate: Timestamp.fromDate(data.dueDate),
       paidDate: data.paidDate ? Timestamp.fromDate(data.paidDate) : undefined,
+      createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),
     };
   },
   fromFirestore: (snapshot: any, options: any): Invoice => {
@@ -21,6 +23,7 @@ const invoiceConverter = {
       ...data,
       dueDate: data.dueDate.toDate(),
       paidDate: data.paidDate ? data.paidDate.toDate() : undefined,
+      createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
     };
   },
 };
