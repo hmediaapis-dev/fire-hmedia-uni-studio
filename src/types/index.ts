@@ -19,6 +19,7 @@ export type Unit = {
   status: 'available' | 'rented' | 'maintenance';
   tenantId?: string;
   gateCode: string;
+  startDate?: Date; // Date the unit was assigned to a tenant
 };
 
 export type Invoice = {

@@ -12,15 +12,23 @@ import {
   addDoc,
   deleteDoc,
   deleteField,
+  Timestamp,
 } from 'firebase/firestore';
 
 const unitConverter = {
-    toFirestore: (data: Omit<Unit, 'id'>) => data,
+    toFirestore: (data: Omit<Unit, 'id'>) => {
+        const firestoreData: any = {...data};
+        if (data.startDate) {
+            firestoreData.startDate = Timestamp.fromDate(data.startDate);
+        }
+        return firestoreData;
+    },
     fromFirestore: (snapshot: any, options: any): Unit => {
         const data = snapshot.data(options);
         return {
             id: snapshot.id,
             ...data,
+            startDate: data.startDate ? data.startDate.toDate() : undefined,
         };
     },
 };
@@ -40,7 +48,11 @@ export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
 
 export async function updateUnit(unitId: string, unitData: Partial<Omit<Unit, 'id'>>): Promise<void> {
     const unitRef = doc(db, 'units', unitId);
-    await updateDoc(unitRef, unitData);
+    const dataToUpdate: any = {...unitData};
+    if (unitData.startDate) {
+        dataToUpdate.startDate = Timestamp.fromDate(unitData.startDate);
+    }
+    await updateDoc(unitRef, dataToUpdate);
 }
 
 export async function deleteUnit(unitId: string, tenantId?: string): Promise<void> {
@@ -65,8 +77,12 @@ export async function assignTenantToUnit(unitId: string, tenantId: string, oldTe
     const unitRef = doc(db, 'units', unitId);
     const newTenantRef = doc(db, 'tenants', tenantId);
 
-    // Update unit
-    batch.update(unitRef, { status: 'rented', tenantId: tenantId });
+    // Update unit with tenant and start date
+    batch.update(unitRef, { 
+        status: 'rented', 
+        tenantId: tenantId,
+        startDate: new Date(),
+    });
 
     // Add unit to new tenant
     batch.update(newTenantRef, { units: arrayUnion(unitId) });
@@ -85,8 +101,12 @@ export async function unassignTenantFromUnit(unitId: string, tenantId: string): 
     const unitRef = doc(db, 'units', unitId);
     const tenantRef = doc(db, 'tenants', tenantId);
 
-    // Update unit
-    batch.update(unitRef, { status: 'available', tenantId: deleteField() });
+    // Update unit status and remove tenantId and startDate
+    batch.update(unitRef, { 
+        status: 'available', 
+        tenantId: deleteField(),
+        startDate: deleteField(),
+    });
 
     // Remove unit from tenant
     batch.update(tenantRef, { units: arrayRemove(unitId) });
