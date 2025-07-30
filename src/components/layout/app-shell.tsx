@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  SidebarProvider,
   Sidebar,
+  SidebarProvider,
   SidebarTrigger,
   SidebarInset,
   SidebarHeader,
