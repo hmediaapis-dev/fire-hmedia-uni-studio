@@ -31,20 +31,20 @@ setGlobalOptions({ maxInstances: 10 });
 
 import * as functions from 'firebase-functions';
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { logger } from "firebase-functions";   //this is the v2 logger function from the firebase documentation
-import { Logging } from "@google-cloud/logging";
+//import { logger } from "firebase-functions";   //this is the v2 logger function from the firebase documentation - was using this on hellov2 log function
+//import { Logging } from "@google-cloud/logging"; //helloworld v1 and v2
 import * as admin from "firebase-admin";
-//import { onRequest } from "firebase-functions/https";   //it let me turn it off
+//import { onRequest } from "firebase-functions/https";   //it let me turn it off - need to see which function used this
 
 admin.initializeApp();
 const db = admin.firestore();
 
 //Initialize logging client
-const logging = new Logging();
-const log = logging.log("my-log");
+/*const logging = new Logging();         //these two lines start a log
+const log = logging.log("my-log");       //second line of log
 const metadata = {
   resource: { type: "cloud_function", labels: { function_name: "scheduledHelloWorldV2" } },
-};  //this add granular metadata for the log
+};  //this adds granular metadata for the log
 
 export const scheduledHelloWorldV2 = onSchedule("0 5 * * *", async (event) => {
   // Create a log entry
@@ -56,7 +56,7 @@ export const scheduledHelloWorldV2 = onSchedule("0 5 * * *", async (event) => {
   } catch (error) {
     logger.error("Logging error:", error);
   }
-});
+});*/
 
 export const generateMonthlyInvoices = onSchedule(
   {
@@ -225,7 +225,7 @@ export const generateMonthlyInvoicesNow = functions.https.onRequest(async (req, 
   }
 });
 
-export const helloWorld = functions.https.onRequest(async (req, res) => {
+/*export const helloWorld = functions.https.onRequest(async (req, res) => {
   const entry = log.entry(metadata, 'Hello, world'); //this creates a variable to be sent to the log file my-log
 
   try {
@@ -236,4 +236,4 @@ export const helloWorld = functions.https.onRequest(async (req, res) => {
     console.error('Logging error:', error);
     res.status(500).send('Error logging message.');
   }
-});
+});*/

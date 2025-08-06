@@ -1,3 +1,4 @@
+
 'use client';
 import {
   Table,
@@ -45,6 +46,7 @@ import { getTenants, addTenant, updateTenant, deleteTenant } from '@/services/te
 import { getUnits } from '@/services/units';
 import { getInvoices } from '@/services/invoices';
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TenantsPage() {
   const { toast } = useToast();
@@ -431,7 +433,7 @@ export default function TenantsPage() {
       </Dialog>
 
        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl grid-rows-[auto_1fr_auto]">
             <DialogHeader>
               <DialogTitle>{viewingTenant?.name}</DialogTitle>
               <DialogDescription>
@@ -440,112 +442,112 @@ export default function TenantsPage() {
             </DialogHeader>
             {viewingTenant && (
             <>
-                <div className="grid gap-6 pt-4">
-                     <div className="grid grid-cols-2">
+                <ScrollArea className="max-h-[60vh] h-full">
+                    <div className="grid gap-6 p-1 pr-6">
+                        <div className="grid grid-cols-2">
+                            <div>
+                                <p className="text-sm text-muted-foreground">{viewingTenant.email}</p>
+                                <p className="text-sm text-muted-foreground">{viewingTenant.phone}</p>
+                            </div>
+                            <div className="text-right">
+                            <p className="text-sm text-muted-foreground flex items-center justify-end gap-2">
+                                    <Home className="h-4 w-4" /> 
+                                    {viewingTenant.address}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="grid md:grid-cols-3 gap-4">
+                            <div className="flex items-center gap-3 rounded-lg border p-3">
+                                <Warehouse className="h-6 w-6 text-muted-foreground" />
+                                <div>
+                                    <p className="text-sm font-medium">Rented Units</p>
+                                    <p className="text-2xl font-bold">{viewingTenant.units.length}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 rounded-lg border p-3">
+                                <DollarSign className="h-6 w-6 text-muted-foreground" />
+                                <div>
+                                    <p className="text-sm font-medium">Current Balance</p>
+                                    <p className="text-2xl font-bold">${viewingTenant.balance.toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 rounded-lg border p-3">
+                                <FileText className="h-6 w-6 text-muted-foreground" />
+                                <div>
+                                    <p className="text-sm font-medium">Total Rent</p>
+                                    <p className="text-2xl font-bold">${viewingTenant.rent.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <Separator />
+
                         <div>
-                            <p className="text-sm text-muted-foreground">{viewingTenant.email}</p>
-                            <p className="text-sm text-muted-foreground">{viewingTenant.phone}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="text-sm text-muted-foreground flex items-center justify-end gap-2">
-                                <Home className="h-4 w-4" /> 
-                                {viewingTenant.address}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="grid md:grid-cols-3 gap-4">
-                        <div className="flex items-center gap-3 rounded-lg border p-3">
-                            <Warehouse className="h-6 w-6 text-muted-foreground" />
-                            <div>
-                                <p className="text-sm font-medium">Rented Units</p>
-                                <p className="text-2xl font-bold">{viewingTenant.units.length}</p>
-                            </div>
-                        </div>
-                         <div className="flex items-center gap-3 rounded-lg border p-3">
-                            <DollarSign className="h-6 w-6 text-muted-foreground" />
-                            <div>
-                                <p className="text-sm font-medium">Current Balance</p>
-                                <p className="text-2xl font-bold">${viewingTenant.balance.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3 rounded-lg border p-3">
-                            <FileText className="h-6 w-6 text-muted-foreground" />
-                            <div>
-                                <p className="text-sm font-medium">Total Rent</p>
-                                <p className="text-2xl font-bold">${viewingTenant.rent.toFixed(2)}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <Separator />
-
-                    <div>
-                        <h4 className="text-lg font-semibold mb-2">Rented Units</h4>
-                        {tenantUnits.length > 0 ? (
-                        <div className="border rounded-lg">
-                           <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Unit</TableHead>
-                                        <TableHead>Size</TableHead>
-                                        <TableHead className="text-right">Rent</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {tenantUnits.map(unit => (
-                                        <TableRow key={unit.id}>
-                                            <TableCell className="font-medium">{unit.name}</TableCell>
-                                            <TableCell>{unit.size}</TableCell>
-                                            <TableCell className="text-right">${unit.rent.toFixed(2)}</TableCell>
+                            <h4 className="text-lg font-semibold mb-2">Rented Units</h4>
+                            {tenantUnits.length > 0 ? (
+                            <div className="border rounded-lg">
+                            <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Unit</TableHead>
+                                            <TableHead>Size</TableHead>
+                                            <TableHead className="text-right">Rent</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                           </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {tenantUnits.map(unit => (
+                                            <TableRow key={unit.id}>
+                                                <TableCell className="font-medium">{unit.name}</TableCell>
+                                                <TableCell>{unit.size}</TableCell>
+                                                <TableCell className="text-right">${unit.rent.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                            </Table>
+                            </div>
+                            ) : (<p className="text-sm text-muted-foreground">No units rented.</p>)}
                         </div>
-                        ) : (<p className="text-sm text-muted-foreground">No units rented.</p>)}
-                    </div>
 
-                    <div>
-                        <h4 className="text-lg font-semibold mb-2">Recent Invoices</h4>
-                        {tenantInvoices.length > 0 ? (
-                        <div className="border rounded-lg">
-                           <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Invoice ID</TableHead>
-                                        <TableHead>Due Date</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Amount</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {tenantInvoices.map(invoice => (
-                                        <TableRow key={invoice.id}>
-                                            <TableCell className="font-mono text-xs">{invoice.id}</TableCell>
-                                            <TableCell>{format(invoice.dueDate, 'LLL dd, yyyy')}</TableCell>
-                                            <TableCell><Badge variant={invoice.status === 'paid' ? 'secondary' : 'destructive'}  className={
-                                                invoice.status === 'paid'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                                : ''
-                                            }>{invoice.status}</Badge></TableCell>
-                                            <TableCell className="text-right">${invoice.amount.toFixed(2)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                           </Table>
-                        </div>
-                        ) : (<p className="text-sm text-muted-foreground">No recent invoices.</p>)}
-                    </div>
-                    
-                     {viewingTenant.notes && (
                         <div>
-                            <h4 className="text-lg font-semibold mb-2">Notes</h4>
-                            <p className="text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/50 p-3 rounded-md border">{viewingTenant.notes}</p>
+                            <h4 className="text-lg font-semibold mb-2">Recent Invoices</h4>
+                            {tenantInvoices.length > 0 ? (
+                            <div className="border rounded-lg">
+                            <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Invoice ID</TableHead>
+                                            <TableHead>Due Date</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {tenantInvoices.map(invoice => (
+                                            <TableRow key={invoice.id}>
+                                                <TableCell className="font-mono text-xs">{invoice.id}</TableCell>
+                                                <TableCell>{format(invoice.dueDate, 'LLL dd, yyyy')}</TableCell>
+                                                <TableCell><Badge variant={invoice.status === 'paid' ? 'secondary' : 'destructive'}  className={
+                                                    invoice.status === 'paid'
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                    : ''
+                                                }>{invoice.status}</Badge></TableCell>
+                                                <TableCell className="text-right">${invoice.amount.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                            </Table>
+                            </div>
+                            ) : (<p className="text-sm text-muted-foreground">No recent invoices.</p>)}
                         </div>
-                     )}
-
-
-                </div>
+                        
+                        {viewingTenant.notes && (
+                            <div>
+                                <h4 className="text-lg font-semibold mb-2">Notes</h4>
+                                <p className="text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/50 p-3 rounded-md border">{viewingTenant.notes}</p>
+                            </div>
+                        )}
+                    </div>
+                </ScrollArea>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
                 </DialogFooter>
@@ -580,5 +582,7 @@ export default function TenantsPage() {
     </>
   );
 }
+
+    
 
     
