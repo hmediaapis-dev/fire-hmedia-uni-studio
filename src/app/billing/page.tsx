@@ -27,6 +27,8 @@ import { getInvoices } from '@/services/invoices';
 import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
+import { DateRangePicker } from '@/components/date-range-picker';
+import type { DateRange } from 'react-day-picker';
 
 export default function BillingPage() {
   const { toast } = useToast();
@@ -34,6 +36,8 @@ export default function BillingPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
 
   useEffect(() => {
     async function loadData() {
@@ -64,17 +68,31 @@ export default function BillingPage() {
   ), [tenants]);
 
   const filteredInvoices = useMemo(() => {
-    if (!searchTerm) return invoices;
-    const lowercasedTerm = searchTerm.toLowerCase();
-    return invoices.filter(invoice => {
-        const tenant = tenantsById[invoice.tenantId];
-        return (
-            invoice.id.toLowerCase().includes(lowercasedTerm) ||
-            tenant?.name.toLowerCase().includes(lowercasedTerm) ||
-            tenant?.email.toLowerCase().includes(lowercasedTerm)
-        )
-    });
-  }, [invoices, searchTerm, tenantsById]);
+    let filtered = invoices;
+
+    // Filter by search term
+    if (searchTerm) {
+      const lowercasedTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(invoice => {
+          const tenant = tenantsById[invoice.tenantId];
+          return (
+              invoice.id.toLowerCase().includes(lowercasedTerm) ||
+              tenant?.name.toLowerCase().includes(lowercasedTerm) ||
+              tenant?.email.toLowerCase().includes(lowercasedTerm)
+          )
+      });
+    }
+
+    // Filter by date range
+    if (dateRange?.from && dateRange?.to) {
+        filtered = filtered.filter(invoice => {
+            const dueDate = invoice.dueDate;
+            return dueDate >= dateRange.from! && dueDate <= dateRange.to!;
+        });
+    }
+
+    return filtered;
+  }, [invoices, searchTerm, tenantsById, dateRange]);
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -115,7 +133,7 @@ export default function BillingPage() {
       </div>
 
       <div className="flex items-center justify-end">
-        <div>date range</div>
+        <DateRangePicker onSelect={setDateRange} />
       </div>
 
       <div className="border rounded-lg">
@@ -140,7 +158,7 @@ export default function BillingPage() {
             ) : filteredInvoices.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center">
-                        {searchTerm ? 'No invoices match your search.' : 'No invoices found.'}
+                        {searchTerm || dateRange?.from ? 'No invoices match your filters.' : 'No invoices found.'}
                     </TableCell>
                 </TableRow>
             ) : (filteredInvoices
