@@ -86,7 +86,7 @@ export function DateRangePicker({ className, onSelect }: DateRangePickerProps) {
                 <Select onValueChange={handlePresetSelect}>
                     <SelectTrigger>
                         <SelectValue placeholder="Presets" />
-                    </T rigge r>
+                    </SelectTrigger>
                     <SelectContent position="popper">
                         <SelectItem value="this-month">This month</SelectItem>
                         <SelectItem value="last-month">Last month</SelectItem>
