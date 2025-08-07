@@ -1,4 +1,5 @@
 
+
 export type Tenant = {
   id: string;
   name: string;
@@ -30,9 +31,22 @@ export type Invoice = {
   amount: number;
   dueDate: Date;
   paidDate?: Date;
-  status: 'paid' | 'unpaid' | 'void';
+  status: 'paid' | 'unpaid' | 'void' | 'partially-paid';
   createdAt?: Date;
+  amountPaid?: number;
 };
+
+export type Payment = {
+    id: string;
+    tenantId: string;
+    amount: number;
+    paymentDate: Date;
+    paymentMethod: 'Cash' | 'Check' | 'Credit Card' | 'Other';
+    invoiceIds: string[];
+    transactionId?: string;
+    notes?: string;
+};
+
 
 export type Document = {
   id: string;

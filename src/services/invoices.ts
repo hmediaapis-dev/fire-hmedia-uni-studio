@@ -5,16 +5,24 @@ import {
   collection,
   getDocs,
   Timestamp,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 
 const invoiceConverter = {
-  toFirestore: (data: Omit<Invoice, 'id'>) => {
-    return {
-      ...data,
-      dueDate: Timestamp.fromDate(data.dueDate),
-      paidDate: data.paidDate ? Timestamp.fromDate(data.paidDate) : undefined,
-      createdAt: data.createdAt ? Timestamp.fromDate(data.createdAt) : Timestamp.now(),
-    };
+  toFirestore: (data: Partial<Invoice>) => {
+    const firestoreData: any = {...data};
+    if (data.dueDate) {
+        firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
+    }
+    if (data.paidDate) {
+        firestoreData.paidDate = Timestamp.fromDate(data.paidDate);
+    }
+    if (data.createdAt) {
+        firestoreData.createdAt = Timestamp.fromDate(data.createdAt);
+    }
+    return firestoreData;
   },
   fromFirestore: (snapshot: any, options: any): Invoice => {
     const data = snapshot.data(options);
@@ -32,4 +40,14 @@ export async function getInvoices(): Promise<Invoice[]> {
   const invoicesCol = collection(db, 'invoices').withConverter(invoiceConverter);
   const snapshot = await getDocs(invoicesCol);
   return snapshot.docs.map((doc) => doc.data());
+}
+
+export async function updateInvoice(invoiceId: string, data: Partial<Omit<Invoice, 'id'>>): Promise<void> {
+    const invoiceRef = doc(db, 'invoices', invoiceId).withConverter(invoiceConverter);
+    await updateDoc(invoiceRef, data);
+}
+
+export async function deleteInvoice(invoiceId: string): Promise<void> {
+    const invoiceRef = doc(db, 'invoices', invoiceId);
+    await deleteDoc(invoiceRef);
 }

@@ -21,14 +21,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle, Search, X } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Invoice, Tenant } from '@/types';
-import { getInvoices } from '@/services/invoices';
+import { getInvoices, updateInvoice, deleteInvoice } from '@/services/invoices';
 import { getTenants } from '@/services/tenants';
+import { recordPayment } from '@/services/payments';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
 import { DateRangePicker } from '@/components/date-range-picker';
 import type { DateRange } from 'react-day-picker';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function BillingPage() {
   const { toast } = useToast();
@@ -37,11 +48,14 @@ export default function BillingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmDescription, setConfirmDescription] = useState('');
 
 
-  useEffect(() => {
-    async function loadData() {
-      try {
+  const loadData = useCallback(async () => {
+    try {
         setIsLoading(true);
         const [invoicesData, tenantsData] = await Promise.all([
             getInvoices(),
@@ -49,19 +63,21 @@ export default function BillingPage() {
         ]);
         setInvoices(invoicesData);
         setTenants(tenantsData);
-      } catch (error) {
+    } catch (error) {
         console.error("Failed to fetch billing data:", error);
         toast({
             title: "Error",
             description: "Failed to load billing data from the database.",
             variant: "destructive",
         });
-      } finally {
+    } finally {
         setIsLoading(false);
-      }
     }
-    loadData();
   }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const tenantsById = useMemo(() => Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
@@ -94,7 +110,71 @@ export default function BillingPage() {
     return filtered;
   }, [invoices, searchTerm, tenantsById, dateRange]);
 
+  const showConfirmationDialog = (title: string, description: string, onConfirm: () => void) => {
+    setConfirmTitle(title);
+    setConfirmDescription(description);
+    setConfirmAction(() => onConfirm); // Use a function to avoid issues with stale state
+    setIsConfirmOpen(true);
+  }
+
+  const handleMarkAsPaid = async (invoice: Invoice) => {
+    showConfirmationDialog(
+        "Confirm Payment",
+        `Are you sure you want to mark invoice ${invoice.id} as fully paid? This will create a payment record for $${invoice.amount.toFixed(2)}.`,
+        async () => {
+            try {
+                await recordPayment({
+                    tenantId: invoice.tenantId,
+                    amount: invoice.amount,
+                    paymentMethod: 'Other', // Or prompt for method
+                    invoiceIds: [invoice.id]
+                });
+                toast({ title: "Success", description: "Payment recorded successfully." });
+                await loadData();
+            } catch (error: any) {
+                console.error("Failed to mark as paid:", error);
+                toast({ title: "Error", description: error.message || "Could not record payment.", variant: "destructive" });
+            }
+        }
+    );
+  };
+
+  const handleVoidInvoice = async (invoice: Invoice) => {
+    showConfirmationDialog(
+        "Confirm Void",
+        `Are you sure you want to void invoice ${invoice.id}? This cannot be undone.`,
+        async () => {
+             try {
+                await updateInvoice(invoice.id, { status: 'void' });
+                toast({ title: "Success", description: "Invoice voided." });
+                await loadData();
+            } catch (error) {
+                console.error("Failed to void invoice:", error);
+                toast({ title: "Error", description: "Could not void the invoice.", variant: "destructive" });
+            }
+        }
+    );
+  };
+
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+     showConfirmationDialog(
+        "Confirm Deletion",
+        `Are you sure you want to permanently delete invoice ${invoice.id}? This action is irreversible.`,
+        async () => {
+            try {
+                await deleteInvoice(invoice.id);
+                toast({ title: "Success", description: "Invoice deleted." });
+                await loadData();
+            } catch (error) {
+                console.error("Failed to delete invoice:", error);
+                toast({ title: "Error", description: "Could not delete the invoice.", variant: "destructive" });
+            }
+        }
+    );
+  };
+
   return (
+    <>
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div id="billing-page-header" className="flex items-center justify-between">
         <div>
@@ -209,14 +289,23 @@ export default function BillingPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem>View Invoice</DropdownMenuItem>
-                        <DropdownMenuItem disabled={invoice.status !== 'unpaid'}>
+                        <DropdownMenuItem
+                            onClick={() => handleMarkAsPaid(invoice)}
+                            disabled={invoice.status !== 'unpaid'}
+                        >
                           Mark as Paid
                         </DropdownMenuItem>
-                         <DropdownMenuItem disabled={invoice.status === 'void'}>
+                         <DropdownMenuItem 
+                            onClick={() => handleVoidInvoice(invoice)}
+                            disabled={invoice.status === 'void' || invoice.status === 'paid'}
+                         >
                           Void Invoice
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => handleDeleteInvoice(invoice)}
+                        >
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -228,5 +317,27 @@ export default function BillingPage() {
         </Table>
       </div>
     </div>
+    <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+                {confirmDescription}
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmAction(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+                if(confirmAction) {
+                    confirmAction();
+                }
+                setIsConfirmOpen(false);
+            }}>
+                Confirm
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

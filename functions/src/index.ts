@@ -115,6 +115,7 @@ export const generateMonthlyInvoices = onSchedule(
         dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
         status: 'unpaid',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        amountPaid: 0,
       };
 
       await db.collection('invoices').add(newInvoice);
@@ -203,6 +204,7 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
                 dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
                 status: 'unpaid',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                amountPaid: 0,
             };
 
             await db.collection('invoices').add(newInvoice);
@@ -342,5 +344,113 @@ export const updateTenant = onCall(async (request) => {
     } catch (error) {
         console.error('Error updating tenant:', error);
         throw new HttpsError('internal', 'Could not update tenant.');
+    }
+});
+
+export const getTenants = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    try {
+        const snapshot = await db.collection('tenants').get();
+        const tenants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return tenants;
+    } catch (error) {
+        console.error('Error getting tenants:', error);
+        throw new HttpsError('internal', 'Could not retrieve tenants.');
+    }
+});
+
+export const recordPayment = onCall(async (request) => {
+    // Auth checks
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Data validation
+    const { tenantId, amount, paymentMethod, invoiceIds } = request.data;
+    if (!tenantId || !amount || !paymentMethod || !invoiceIds || !Array.isArray(invoiceIds)) {
+        throw new HttpsError('invalid-argument', 'Missing required payment information.');
+    }
+    if (amount <= 0) {
+        throw new HttpsError('invalid-argument', 'Payment amount must be positive.');
+    }
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const tenantRef = db.collection('tenants').doc(tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+
+            if (!tenantDoc.exists) {
+                throw new HttpsError('not-found', 'Tenant not found.');
+            }
+
+            // 1. Create the payment record
+            const paymentRef = db.collection('payments').doc();
+            transaction.set(paymentRef, {
+                ...request.data,
+                paymentDate: admin.firestore.Timestamp.now(),
+            });
+
+            // 2. Update tenant's balance
+            const currentBalance = tenantDoc.data()?.balance ?? 0;
+            const newBalance = currentBalance - amount;
+            transaction.update(tenantRef, { balance: newBalance });
+
+            // 3. Update the invoices
+            let remainingAmountToApply = amount;
+
+            for (const invoiceId of invoiceIds) {
+                if (remainingAmountToApply <= 0) break;
+
+                const invoiceRef = db.collection('invoices').doc(invoiceId);
+                const invoiceDoc = await transaction.get(invoiceRef);
+
+                if (!invoiceDoc.exists) {
+                    console.warn(`Invoice ${invoiceId} not found during payment transaction.`);
+                    continue; // Skip if invoice not found
+                }
+
+                const invoiceData = invoiceDoc.data();
+                const amountDue = (invoiceData?.amount ?? 0) - (invoiceData?.amountPaid ?? 0);
+
+                if (amountDue <= 0) continue; // Skip already paid invoices
+
+                const amountToApplyToInvoice = Math.min(remainingAmountToApply, amountDue);
+                const newAmountPaid = (invoiceData?.amountPaid ?? 0) + amountToApplyToInvoice;
+                
+                let newStatus = invoiceData?.status;
+                if (newAmountPaid >= (invoiceData?.amount ?? 0)) {
+                    newStatus = 'paid';
+                } else {
+                    newStatus = 'partially-paid';
+                }
+                
+                transaction.update(invoiceRef, {
+                    amountPaid: newAmountPaid,
+                    status: newStatus,
+                    paidDate: admin.firestore.Timestamp.now(), // Update paidDate on any payment
+                });
+
+                remainingAmountToApply -= amountToApplyToInvoice;
+            }
+        });
+
+        return { success: true, message: 'Payment recorded successfully.' };
+
+    } catch (error: any) {
+        console.error('Error recording payment:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An internal error occurred while recording the payment.');
     }
 });
