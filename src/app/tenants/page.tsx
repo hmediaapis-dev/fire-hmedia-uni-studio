@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText, Home } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText, Home, Search, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Tenant, Unit, Invoice } from '@/types';
 import { Separator } from '@/components/ui/separator';
 import { getTenants, addTenant, updateTenant, deleteTenant } from '@/services/tenants';
@@ -54,6 +54,7 @@ export default function TenantsPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -99,6 +100,15 @@ export default function TenantsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  
+  const filteredTenants = useMemo(() => {
+    if (!searchTerm) return tenants;
+    return tenants.filter(tenant => 
+        tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tenant.phone.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [tenants, searchTerm]);
 
   const handleEditClick = (tenant: Tenant) => {
     setSelectedTenant({ ...tenant });
@@ -223,74 +233,97 @@ export default function TenantsPage() {
               Manage your tenants and their information.
             </p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Tenant
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add New Tenant</DialogTitle>
-                <DialogDescription>
-                  Enter the details for the new tenant.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="John Doe"
-                    value={newTenant.name}
-                    onChange={handleNewTenantInputChange}
-                  />
+          <div className="flex items-center gap-2">
+             <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Search tenants..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 sm:w-[300px]"
+                />
+                {searchTerm && (
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                      onClick={() => setSearchTerm('')}
+                  >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Clear search</span>
+                  </Button>
+                )}
+            </div>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add Tenant
+                </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Add New Tenant</DialogTitle>
+                    <DialogDescription>
+                    Enter the details for the new tenant.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                        id="name"
+                        placeholder="John Doe"
+                        value={newTenant.name}
+                        onChange={handleNewTenantInputChange}
+                    />
+                    </div>
+                    <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                        id="email"
+                        type="email"
+                        placeholder="john.doe@example.com"
+                        value={newTenant.email}
+                        onChange={handleNewTenantInputChange}
+                    />
+                    </div>
+                    <div className="grid gap-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                        id="phone"
+                        placeholder="555-123-4567"
+                        value={newTenant.phone}
+                        onChange={handleNewTenantInputChange}
+                    />
+                    </div>
+                    <div className="grid gap-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                        id="address"
+                        placeholder="123 Main St, Anytown, USA"
+                        value={newTenant.address}
+                        onChange={handleNewTenantInputChange}
+                    />
+                    </div>
+                    <div className="grid gap-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                        id="notes"
+                        placeholder="Initial notes about the tenant..."
+                        value={newTenant.notes}
+                        onChange={handleNewTenantInputChange}
+                    />
+                    </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="john.doe@example.com"
-                    value={newTenant.email}
-                    onChange={handleNewTenantInputChange}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    placeholder="555-123-4567"
-                    value={newTenant.phone}
-                    onChange={handleNewTenantInputChange}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    placeholder="123 Main St, Anytown, USA"
-                    value={newTenant.address}
-                    onChange={handleNewTenantInputChange}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Initial notes about the tenant..."
-                    value={newTenant.notes}
-                    onChange={handleNewTenantInputChange}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAddTenant}>Save Tenant</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleAddTenant}>Save Tenant</Button>
+                </DialogFooter>
+                </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="border rounded-lg">
@@ -312,12 +345,14 @@ export default function TenantsPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="text-center">Loading tenants from Firestore...</TableCell>
                 </TableRow>
-              ) : tenants.length === 0 ? (
+              ) : filteredTenants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">No tenants found. Add one to get started.</TableCell>
+                  <TableCell colSpan={6} className="text-center">
+                    {searchTerm ? 'No tenants match your search.' : 'No tenants found. Add one to get started.'}
+                  </TableCell>
                 </TableRow>
               ) : (
-                tenants.map((tenant) => (
+                filteredTenants.map((tenant) => (
                 <TableRow 
                   key={tenant.id}
                   onClick={() => handleViewDetailsClick(tenant)}
@@ -582,7 +617,5 @@ export default function TenantsPage() {
     </>
   );
 }
-
-    
 
     
