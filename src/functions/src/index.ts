@@ -115,6 +115,7 @@ export const generateMonthlyInvoices = onSchedule(
         dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
         status: 'unpaid',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        amountPaid: 0,
       };
 
       await db.collection('invoices').add(newInvoice);
@@ -203,6 +204,7 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
                 dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
                 status: 'unpaid',
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                amountPaid: 0,
             };
 
             await db.collection('invoices').add(newInvoice);
@@ -361,5 +363,173 @@ export const getTenants = onCall(async (request) => {
     } catch (error) {
         console.error('Error getting tenants:', error);
         throw new HttpsError('internal', 'Could not retrieve tenants.');
+    }
+});
+
+export const recordPayment = onCall(async (request) => {
+    // Auth checks
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Data validation
+    const { tenantId, amount, paymentMethod, invoiceIds } = request.data;
+    if (!tenantId || !amount || !paymentMethod || !invoiceIds || !Array.isArray(invoiceIds)) {
+        throw new HttpsError('invalid-argument', 'Missing required payment information.');
+    }
+    if (amount <= 0) {
+        throw new HttpsError('invalid-argument', 'Payment amount must be positive.');
+    }
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const tenantRef = db.collection('tenants').doc(tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+
+            if (!tenantDoc.exists) {
+                throw new HttpsError('not-found', 'Tenant not found.');
+            }
+
+            // 1. Create the payment record
+            const paymentRef = db.collection('payments').doc();
+            transaction.set(paymentRef, {
+                ...request.data,
+                paymentDate: admin.firestore.Timestamp.now(),
+            });
+
+            // 2. Update tenant's balance
+            const currentBalance = tenantDoc.data()?.balance ?? 0;
+            const newBalance = currentBalance - amount;
+            transaction.update(tenantRef, { balance: newBalance });
+
+            // 3. Update the invoices
+            let remainingAmountToApply = amount;
+
+            for (const invoiceId of invoiceIds) {
+                if (remainingAmountToApply <= 0) break;
+
+                const invoiceRef = db.collection('invoices').doc(invoiceId);
+                const invoiceDoc = await transaction.get(invoiceRef);
+
+                if (!invoiceDoc.exists) {
+                    console.warn(`Invoice ${invoiceId} not found during payment transaction.`);
+                    continue; // Skip if invoice not found
+                }
+
+                const invoiceData = invoiceDoc.data();
+                const amountDue = (invoiceData?.amount ?? 0) - (invoiceData?.amountPaid ?? 0);
+
+                if (amountDue <= 0) continue; // Skip already paid invoices
+
+                const amountToApplyToInvoice = Math.min(remainingAmountToApply, amountDue);
+                const newAmountPaid = (invoiceData?.amountPaid ?? 0) + amountToApplyToInvoice;
+                
+                let newStatus = invoiceData?.status;
+                if (newAmountPaid >= (invoiceData?.amount ?? 0)) {
+                    newStatus = 'paid';
+                } else {
+                    newStatus = 'partially-paid';
+                }
+                
+                transaction.update(invoiceRef, {
+                    amountPaid: newAmountPaid,
+                    status: newStatus,
+                    paidDate: admin.firestore.Timestamp.now(), // Update paidDate on any payment
+                });
+
+                remainingAmountToApply -= amountToApplyToInvoice;
+            }
+        });
+
+        return { success: true, message: 'Payment recorded successfully.' };
+
+    } catch (error: any) {
+        console.error('Error recording payment:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An internal error occurred while recording the payment.');
+    }
+});
+
+export const deletePayment = onCall(async (request) => {
+    // Auth checks
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Data validation
+    const { paymentId } = request.data;
+    if (!paymentId) {
+        throw new HttpsError('invalid-argument', 'Missing required payment ID.');
+    }
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const paymentRef = db.collection('payments').doc(paymentId);
+            const paymentDoc = await transaction.get(paymentRef);
+
+            if (!paymentDoc.exists) {
+                throw new HttpsError('not-found', 'Payment not found.');
+            }
+
+            const paymentData = paymentDoc.data();
+            const { tenantId, amount, invoiceIds } = paymentData as any;
+
+            // 1. Revert tenant's balance
+            const tenantRef = db.collection('tenants').doc(tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+            if (tenantDoc.exists) {
+                const currentBalance = tenantDoc.data()?.balance ?? 0;
+                transaction.update(tenantRef, { balance: currentBalance + amount });
+            }
+
+            // 2. Revert invoice statuses and amounts paid
+            let amountToUnapply = amount;
+            for (const invoiceId of invoiceIds) {
+                if(amountToUnapply <= 0) break;
+
+                const invoiceRef = db.collection('invoices').doc(invoiceId);
+                const invoiceDoc = await transaction.get(invoiceRef);
+                if (invoiceDoc.exists) {
+                    const invoiceData = invoiceDoc.data();
+                    const currentAmountPaid = invoiceData?.amountPaid ?? 0;
+                    
+                    const amountToRevertFromInvoice = Math.min(amountToUnapply, currentAmountPaid);
+                    const newAmountPaid = currentAmountPaid - amountToRevertFromInvoice;
+                    
+                    let newStatus = 'unpaid';
+                    if (newAmountPaid > 0) {
+                        newStatus = 'partially-paid';
+                    }
+                    
+                    transaction.update(invoiceRef, {
+                        amountPaid: newAmountPaid,
+                        status: newStatus,
+                        paidDate: admin.firestore.FieldValue.delete(), // Remove paid date
+                    });
+                    
+                    amountToUnapply -= amountToRevertFromInvoice;
+                }
+            }
+
+            // 3. Delete the payment record
+            transaction.delete(paymentRef);
+        });
+
+        return { success: true, message: 'Payment deleted and records reverted successfully.' };
+
+    } catch (error: any) {
+        console.error('Error deleting payment:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
     }
 });
