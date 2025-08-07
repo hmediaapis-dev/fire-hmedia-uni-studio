@@ -114,6 +114,10 @@ export default function BillingPage() {
         </div>
       </div>
 
+      <div className="flex items-center justify-end">
+        <div>date range</div>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
