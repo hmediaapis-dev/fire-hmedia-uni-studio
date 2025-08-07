@@ -6,6 +6,7 @@ const generateMonthlyInvoicesNow = httpsCallable(functions, 'generateMonthlyInvo
 export const addTenantFunction = httpsCallable<Omit<Tenant, 'id' | 'joinDate'>, { id: string }>(functions, 'addTenant');
 export const deleteTenantFunction = httpsCallable<{ tenantId: string }, void>(functions, 'deleteTenant');
 export const updateTenantFunction = httpsCallable<{ tenantId: string; tenantData: Partial<Tenant> }, void>(functions, 'updateTenant');
+export const getTenantsFunction = httpsCallable<void, any[]>(functions, 'getTenants');
 
 
 export async function runManualInvoiceGeneration() {
