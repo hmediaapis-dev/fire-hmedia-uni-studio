@@ -7,7 +7,7 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import {setGlobalOptions} from "firebase-functions";
+import {setGlobalOptions} from "firebase-functions/v2";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
@@ -29,7 +29,7 @@ setGlobalOptions({ maxInstances: 10 });
 //   response.send("Hello from Firebase!");
 // });
 
-import * as functions from 'firebase-functions';
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 //import { logger } from "firebase-functions";   //this is the v2 logger function from the firebase documentation - was using this on hellov2 log function
 //import { Logging } from "@google-cloud/logging"; //helloworld v1 and v2
@@ -139,90 +139,98 @@ export const generateMonthlyInvoices = onSchedule(
   }
 );
 
-export const generateMonthlyInvoicesNow = functions.https.onRequest(async (req, res) => {
-  try {
-    const today = new Date();
-    const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
-    const invoiceYear = today.getFullYear();
-
-    // Get all rented units
-    const unitsSnapshot = await db.collection('units')
-      .where('tenantId', '!=', null)
-      .get();
-
-    let invoicesCreated = 0;
-
-    for (const unitDoc of unitsSnapshot.docs) {
-      const unit = unitDoc.data();
-      const unitId = unitDoc.id;
-
-      if (!unit.tenantId || !unit.startDate) continue;
-
-      const startDate = unit.startDate.toDate
-        ? unit.startDate.toDate()
-        : new Date(unit.startDate);
-
-      if (startDate > today) continue;
-
-      const tenantId = unit.tenantId;
-      const rent = unit.rent;
-
-      // Check if invoice already exists for this month
-      const invoiceQuery = await db.collection('invoices')
-        .where('tenantId', '==', tenantId)
-        .where('dueDate', '>=', new Date(invoiceYear, invoiceMonth, 1))
-        .where('dueDate', '<', new Date(invoiceYear, invoiceMonth + 1, 1))
-        .get();
-
-      const alreadyExists = invoiceQuery.docs.some(
-        (doc) => doc.data().amount === rent
-      );
-      if (alreadyExists) continue;
-
-      // Create invoice
-      const newInvoice = {
-        tenantId,
-        unitId,
-        amount: rent,
-        dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
-        status: 'unpaid',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-
-      await db.collection('invoices').add(newInvoice);
-      invoicesCreated++;
-      console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
-
-      // Update tenant balance in a transaction
-      const tenantRef = db.collection('tenants').doc(tenantId);
-
-      await db.runTransaction(async (transaction) => {
-        const tenantDoc = await transaction.get(tenantRef);
-
-        if (!tenantDoc.exists) {
-          console.warn(`Tenant ${tenantId} not found when updating balance`);
-          return;
-        }
-
-        const tenantData = tenantDoc.data();
-        const currentBalance = tenantData?.balance ?? 0;
-
-        transaction.update(tenantRef, {
-          balance: currentBalance + rent,
-        });
-      });
-
-      console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
+export const generateMonthlyInvoicesNow = onCall(async (request) => {
+    // Check if the user is authenticated.
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    // Check if the user is an admin.
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
     }
 
-    res.status(200).json({
-      message: `Monthly invoices generated successfully.`,
-      invoicesCreated,
-    });
-  } catch (error) {
-    console.error('Error generating monthly invoices:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
+    try {
+        const today = new Date();
+        const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
+        const invoiceYear = today.getFullYear();
+
+        // Get all rented units
+        const unitsSnapshot = await db.collection('units')
+            .where('tenantId', '!=', null)
+            .get();
+
+        let invoicesCreated = 0;
+
+        for (const unitDoc of unitsSnapshot.docs) {
+            const unit = unitDoc.data();
+            const unitId = unitDoc.id;
+
+            if (!unit.tenantId || !unit.startDate) continue;
+
+            const startDate = unit.startDate.toDate
+                ? unit.startDate.toDate()
+                : new Date(unit.startDate);
+
+            if (startDate > today) continue;
+
+            const tenantId = unit.tenantId;
+            const rent = unit.rent;
+
+            // Check if invoice already exists for this month
+            const invoiceQuery = await db.collection('invoices')
+                .where('tenantId', '==', tenantId)
+                .where('dueDate', '>=', new Date(invoiceYear, invoiceMonth, 1))
+                .where('dueDate', '<', new Date(invoiceYear, invoiceMonth + 1, 1))
+                .get();
+
+            const alreadyExists = invoiceQuery.docs.some(
+                (doc) => doc.data().amount === rent
+            );
+            if (alreadyExists) continue;
+
+            // Create invoice
+            const newInvoice = {
+                tenantId,
+                unitId,
+                amount: rent,
+                dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
+                status: 'unpaid',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            await db.collection('invoices').add(newInvoice);
+            invoicesCreated++;
+            console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
+
+            // Update tenant balance in a transaction
+            const tenantRef = db.collection('tenants').doc(tenantId);
+
+            await db.runTransaction(async (transaction) => {
+                const tenantDoc = await transaction.get(tenantRef);
+
+                if (!tenantDoc.exists) {
+                    console.warn(`Tenant ${tenantId} not found when updating balance`);
+                    return;
+                }
+
+                const tenantData = tenantDoc.data();
+                const currentBalance = tenantData?.balance ?? 0;
+
+                transaction.update(tenantRef, {
+                    balance: currentBalance + rent,
+                });
+            });
+            console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
+        }
+
+        return {
+            message: `Monthly invoices generated successfully.`,
+            invoicesCreated,
+        };
+    } catch (error) {
+        console.error('Error generating monthly invoices:', error);
+        throw new HttpsError('internal', 'Internal Server Error');
+    }
 });
 
 /*export const helloWorld = functions.https.onRequest(async (req, res) => {
