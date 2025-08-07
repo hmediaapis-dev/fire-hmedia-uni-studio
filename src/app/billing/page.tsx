@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -19,18 +20,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { MoreHorizontal, PlusCircle, Search, X } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Invoice, Tenant } from '@/types';
 import { getInvoices } from '@/services/invoices';
 import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
+import { Input } from '@/components/ui/input';
 
 export default function BillingPage() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function loadData() {
@@ -56,9 +59,22 @@ export default function BillingPage() {
     loadData();
   }, [toast]);
 
-  const tenantsById = Object.fromEntries(
+  const tenantsById = useMemo(() => Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
-  );
+  ), [tenants]);
+
+  const filteredInvoices = useMemo(() => {
+    if (!searchTerm) return invoices;
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return invoices.filter(invoice => {
+        const tenant = tenantsById[invoice.tenantId];
+        return (
+            invoice.id.toLowerCase().includes(lowercasedTerm) ||
+            tenant?.name.toLowerCase().includes(lowercasedTerm) ||
+            tenant?.email.toLowerCase().includes(lowercasedTerm)
+        )
+    });
+  }, [invoices, searchTerm, tenantsById]);
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -69,10 +85,33 @@ export default function BillingPage() {
             Manage invoices and payments.
           </p>
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+            <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Search invoices..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 sm:w-[300px]"
+                />
+                {searchTerm && (
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                      onClick={() => setSearchTerm('')}
+                  >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Clear search</span>
+                  </Button>
+                )}
+            </div>
+            <Button>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create Invoice
+            </Button>
+        </div>
       </div>
 
       <div className="border rounded-lg">
@@ -94,11 +133,13 @@ export default function BillingPage() {
                 <TableRow>
                     <TableCell colSpan={6} className="text-center">Loading invoices from Firestore...</TableCell>
                 </TableRow>
-            ) : invoices.length === 0 ? (
+            ) : filteredInvoices.length === 0 ? (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center">No invoices found.</TableCell>
+                    <TableCell colSpan={6} className="text-center">
+                        {searchTerm ? 'No invoices match your search.' : 'No invoices found.'}
+                    </TableCell>
                 </TableRow>
-            ) : (invoices
+            ) : (filteredInvoices
               .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime())
               .map((invoice) => (
                 <TableRow key={invoice.id}>
