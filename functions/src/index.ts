@@ -24,17 +24,11 @@ import {setGlobalOptions} from "firebase-functions/v2";
 // this will be the maximum concurrent request count.
 setGlobalOptions({ maxInstances: 10 });
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
-
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 //import { logger } from "firebase-functions";   //this is the v2 logger function from the firebase documentation - was using this on hellov2 log function
 //import { Logging } from "@google-cloud/logging"; //helloworld v1 and v2
 import * as admin from "firebase-admin";
-//import { onRequest } from "firebase-functions/https";   //it let me turn it off - need to see which function used this
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -55,6 +49,19 @@ export const scheduledHelloWorldV2 = onSchedule("0 5 * * *", async (event) => {
     logger.log("Logged: Hello, world from scheduledHelloWorldV2");
   } catch (error) {
     logger.error("Logging error:", error);
+  }
+});*/
+
+/*export const helloWorld = functions.https.onRequest(async (req, res) => {
+  const entry = log.entry(metadata, 'Hello, world'); //this creates a variable to be sent to the log file my-log
+
+  try {
+    await log.write(entry);
+    console.log('Logged: Hello, world');
+    res.status(200).send('Hello World logged!'); //this send something to the screen
+  } catch (error) {
+    console.error('Logging error:', error);
+    res.status(500).send('Error logging message.');
   }
 });*/
 
@@ -233,15 +240,82 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
     }
 });
 
-/*export const helloWorld = functions.https.onRequest(async (req, res) => {
-  const entry = log.entry(metadata, 'Hello, world'); //this creates a variable to be sent to the log file my-log
 
-  try {
-    await log.write(entry);
-    console.log('Logged: Hello, world');
-    res.status(200).send('Hello World logged!'); //this send something to the screen
-  } catch (error) {
-    console.error('Logging error:', error);
-    res.status(500).send('Error logging message.');
-  }
-});*/
+export const addTenant = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const data = request.data;
+    if (!data.name || !data.email) {
+        throw new HttpsError('invalid-argument', 'The function must be called with "name" and "email" arguments.');
+    }
+
+    try {
+        const newTenant = {
+            name: data.name,
+            email: data.email,
+            phone: data.phone || '',
+            address: data.address || '',
+            notes: data.notes || '',
+            units: [],
+            rent: 0,
+            balance: 0,
+            joinDate: admin.firestore.Timestamp.now(),
+        };
+
+        const docRef = await db.collection('tenants').add(newTenant);
+        return { id: docRef.id };
+    } catch (error) {
+        console.error('Error adding tenant:', error);
+        throw new HttpsError('internal', 'Could not add tenant.');
+    }
+});
+
+
+export const deleteTenant = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+    
+    const { tenantId } = request.data;
+    if (!tenantId) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "tenantId" argument.');
+    }
+    
+    const batch = db.batch();
+    const tenantRef = db.collection('tenants').doc(tenantId);
+    
+    try {
+        // Find units associated with the tenant
+        const unitsSnapshot = await db.collection('units').where('tenantId', '==', tenantId).get();
+        
+        // Unassign tenant from each unit
+        unitsSnapshot.forEach(unitDoc => {
+            batch.update(unitDoc.ref, {
+                status: 'available',
+                tenantId: admin.firestore.FieldValue.delete(),
+                startDate: admin.firestore.FieldValue.delete(),
+            });
+        });
+
+        // Delete the tenant document
+        batch.delete(tenantRef);
+        
+        await batch.commit();
+        
+        return { message: 'Tenant deleted and units unassigned successfully.' };
+    } catch (error) {
+        console.error('Error deleting tenant:', error);
+        throw new HttpsError('internal', 'Could not delete tenant.');
+    }
+});

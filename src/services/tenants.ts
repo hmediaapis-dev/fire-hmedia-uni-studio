@@ -3,12 +3,12 @@ import type { Tenant } from '@/types';
 import {
   collection,
   getDocs,
-  addDoc,
   doc,
   updateDoc,
-  deleteDoc,
   Timestamp,
 } from 'firebase/firestore';
+import { addTenantFunction, deleteTenantFunction } from './functions';
+
 
 // A helper function to convert Firestore Timestamps to JS Dates
 const tenantConverter = {
@@ -35,9 +35,8 @@ export async function getTenants(): Promise<Tenant[]> {
 }
 
 export async function addTenant(tenantData: Omit<Tenant, 'id'>): Promise<string> {
-    const tenantsCol = collection(db, 'tenants').withConverter(tenantConverter);
-    const docRef = await addDoc(tenantsCol, tenantData);
-    return docRef.id;
+    const result: any = await addTenantFunction(tenantData);
+    return result.data.id;
 }
 
 export async function updateTenant(tenantId: string, tenantData: Partial<Tenant>): Promise<void> {
@@ -51,6 +50,5 @@ export async function updateTenant(tenantId: string, tenantData: Partial<Tenant>
 }
 
 export async function deleteTenant(tenantId: string): Promise<void> {
-    const tenantRef = doc(db, 'tenants', tenantId);
-    await deleteDoc(tenantRef);
+    await deleteTenantFunction({ tenantId });
 }
