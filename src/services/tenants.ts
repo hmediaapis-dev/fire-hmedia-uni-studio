@@ -3,11 +3,9 @@ import type { Tenant } from '@/types';
 import {
   collection,
   getDocs,
-  doc,
-  updateDoc,
   Timestamp,
 } from 'firebase/firestore';
-import { addTenantFunction, deleteTenantFunction } from './functions';
+import { addTenantFunction, deleteTenantFunction, updateTenantFunction } from './functions';
 
 
 // A helper function to convert Firestore Timestamps to JS Dates
@@ -34,19 +32,13 @@ export async function getTenants(): Promise<Tenant[]> {
   return snapshot.docs.map((doc) => doc.data());
 }
 
-export async function addTenant(tenantData: Omit<Tenant, 'id'>): Promise<string> {
+export async function addTenant(tenantData: Omit<Tenant, 'id' | 'joinDate' | 'units' | 'rent' | 'balance' >): Promise<string> {
     const result: any = await addTenantFunction(tenantData);
     return result.data.id;
 }
 
 export async function updateTenant(tenantId: string, tenantData: Partial<Tenant>): Promise<void> {
-    const tenantRef = doc(db, 'tenants', tenantId);
-    // Don't convert dates if they are not being updated
-    const dataToUpdate = { ...tenantData };
-    if (dataToUpdate.joinDate && !(dataToUpdate.joinDate instanceof Timestamp)) {
-        dataToUpdate.joinDate = Timestamp.fromDate(dataToUpdate.joinDate);
-    }
-    await updateDoc(tenantRef, dataToUpdate);
+    await updateTenantFunction({ tenantId, tenantData });
 }
 
 export async function deleteTenant(tenantId: string): Promise<void> {

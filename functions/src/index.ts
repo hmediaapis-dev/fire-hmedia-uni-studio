@@ -319,3 +319,28 @@ export const deleteTenant = onCall(async (request) => {
         throw new HttpsError('internal', 'Could not delete tenant.');
     }
 });
+
+export const updateTenant = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const { tenantId, tenantData } = request.data;
+    if (!tenantId || !tenantData) {
+        throw new HttpsError('invalid-argument', 'The function must be called with "tenantId" and "tenantData".');
+    }
+
+    try {
+        const tenantRef = db.collection('tenants').doc(tenantId);
+        await tenantRef.update(tenantData);
+        return { message: 'Tenant updated successfully.' };
+    } catch (error) {
+        console.error('Error updating tenant:', error);
+        throw new HttpsError('internal', 'Could not update tenant.');
+    }
+});
