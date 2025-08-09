@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export default function BillingPage() {
+export default function InvoicesPage() {
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -178,7 +178,7 @@ export default function BillingPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div id="billing-page-header" className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Billing</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Invoices</h2>
           <p className="text-muted-foreground">
             Manage invoices and payments.
           </p>

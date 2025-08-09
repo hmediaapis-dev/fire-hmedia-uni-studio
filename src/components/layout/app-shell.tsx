@@ -44,7 +44,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tenants', label: 'Tenants', icon: Users },
   { href: '/units', label: 'Units', icon: Warehouse },
-  { href: '/billing', label: 'Billing', icon: CreditCard },
+  { href: '/billing', label: 'Invoices', icon: CreditCard },
   { href: '/forms', label: 'Forms', icon: FileText },
 ];
 
