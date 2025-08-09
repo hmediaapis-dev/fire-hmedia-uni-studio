@@ -27,12 +27,28 @@ setGlobalOptions({ maxInstances: 10 });
 
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-//import { logger } from "firebase-functions";   //this is the v2 logger function from the firebase documentation - was using this on hellov2 log function
-//import { Logging } from "@google-cloud/logging"; //helloworld v1 and v2
+import * as functions from 'firebase-functions';
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// This function triggers when a new user is created.
+export const onUserCreate = functions.auth.user().onCreate(async (user) => {
+    // We can create a "tenant" record for them automatically.
+    // This is useful if you want users to manage their own data.
+    // For this app, the admin manages tenants, so we'll just log.
+    console.log(`New user created: ${user.email} (UID: ${user.uid})`);
+    
+    // Example: Create a corresponding 'users' document if needed.
+    // const userRef = db.collection('users').doc(user.uid);
+    // return userRef.set({
+    //     email: user.email,
+    //     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    //     roles: ['user'] // Default role
+    // });
+});
+
 
 export const setAdminClaim = onCall(async (request) => {
   // 1. Check if the user is authenticated at all.
