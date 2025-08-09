@@ -1,5 +1,6 @@
 
 
+
 /**
  * Import function triggers from their respective submodules:
  *
@@ -555,5 +556,53 @@ export const deletePayment = onCall(async (request) => {
         console.error('Error deleting payment:', error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
+    }
+});
+
+
+export const deleteInvoice = onCall(async (request) => {
+    // 1. Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'Only an admin can perform this action.');
+    }
+
+    const { invoiceId } = request.data;
+    if (!invoiceId) {
+        throw new HttpsError('invalid-argument', 'The function must be called with an "invoiceId".');
+    }
+
+    const invoiceRef = db.collection('invoices').doc(invoiceId);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            // === READ PHASE ===
+            const invoiceDoc = await transaction.get(invoiceRef);
+            if (!invoiceDoc.exists) {
+                throw new HttpsError('not-found', 'Invoice not found.');
+            }
+
+            const { tenantId, amount, amountPaid } = invoiceDoc.data() as any;
+            const tenantRef = db.collection('tenants').doc(tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+
+            // === WRITE PHASE ===
+            if (tenantDoc.exists) {
+                const currentBalance = tenantDoc.data()?.balance ?? 0;
+                const amountToAdjust = amount - (amountPaid ?? 0);
+                transaction.update(tenantRef, { balance: currentBalance - amountToAdjust });
+            }
+
+            transaction.delete(invoiceRef);
+        });
+
+        return { success: true, message: 'Invoice deleted and tenant balance updated.' };
+
+    } catch (error: any) {
+        console.error('Error deleting invoice:', error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while deleting the invoice.');
     }
 });

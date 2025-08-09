@@ -11,6 +11,8 @@ export const getTenantsFunction = httpsCallable<void, any[]>(functions, 'getTena
 
 export const recordPaymentFunction = httpsCallable<Omit<Payment, 'id' | 'paymentDate'>, { success: boolean, message: string }>(functions, 'recordPayment');
 export const deletePaymentFunction = httpsCallable<{ paymentId: string }, { success: boolean, message: string }>(functions, 'deletePayment');
+export const deleteInvoiceFunction = httpsCallable<{ invoiceId: string }, void>(functions, 'deleteInvoice');
+
 
 // Admin functions
 export const setAdminClaim = httpsCallable<{ email: string }, { message: string }>(functions, 'setAdminClaim');

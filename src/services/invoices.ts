@@ -7,8 +7,9 @@ import {
   Timestamp,
   doc,
   updateDoc,
-  deleteDoc,
 } from 'firebase/firestore';
+import { deleteInvoiceFunction } from './functions';
+
 
 const invoiceConverter = {
   toFirestore: (data: Partial<Invoice>) => {
@@ -48,6 +49,5 @@ export async function updateInvoice(invoiceId: string, data: Partial<Omit<Invoic
 }
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
-    const invoiceRef = doc(db, 'invoices', invoiceId);
-    await deleteDoc(invoiceRef);
+    await deleteInvoiceFunction({ invoiceId });
 }
