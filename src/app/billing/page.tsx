@@ -306,7 +306,7 @@ export default function InvoicesPage() {
                             className="text-destructive"
                             onClick={() => handleDeleteInvoice(invoice)}
                         >
-                          Delete
+                          what does this button do? what logic does it call and what is the flow?
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -341,3 +341,5 @@ export default function InvoicesPage() {
     </>
   );
 }
+
+    

@@ -476,7 +476,6 @@ export const recordPayment = onCall(async (request) => {
 });
 
 export const deletePayment = onCall(async (request) => {
-    // Auth checks
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
     }
@@ -484,7 +483,6 @@ export const deletePayment = onCall(async (request) => {
         throw new HttpsError('permission-denied', 'The function must be called by an admin.');
     }
 
-    // Data validation
     const { paymentId } = request.data;
     if (!paymentId) {
         throw new HttpsError('invalid-argument', 'Missing required payment ID.');
@@ -492,6 +490,7 @@ export const deletePayment = onCall(async (request) => {
 
     try {
         await db.runTransaction(async (transaction) => {
+            // === READ PHASE ===
             const paymentRef = db.collection('payments').doc(paymentId);
             const paymentDoc = await transaction.get(paymentRef);
 
@@ -499,48 +498,54 @@ export const deletePayment = onCall(async (request) => {
                 throw new HttpsError('not-found', 'Payment not found.');
             }
 
-            const paymentData = paymentDoc.data();
-            const { tenantId, amount, invoiceIds } = paymentData as any;
+            const { tenantId, amount, invoiceIds } = paymentDoc.data() as any;
 
-            // 1. Revert tenant's balance
             const tenantRef = db.collection('tenants').doc(tenantId);
             const tenantDoc = await transaction.get(tenantRef);
+
+            let invoiceDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+
+            if (invoiceIds?.length) {
+                // Split invoiceIds into chunks of 10 for Firestore 'in' query limit
+                const chunkSize = 10;
+                for (let i = 0; i < invoiceIds.length; i += chunkSize) {
+                    const chunk = invoiceIds.slice(i, i + chunkSize);
+                    const invoicesQuery = db.collection('invoices')
+                        .where(admin.firestore.FieldPath.documentId(), 'in', chunk);
+                    const invoicesSnap = await transaction.get(invoicesQuery);
+                    invoiceDocs.push(...invoicesSnap.docs);
+                }
+            }
+
+            // === WRITE PHASE ===
+
+            // 1. Update tenant balance
             if (tenantDoc.exists) {
                 const currentBalance = tenantDoc.data()?.balance ?? 0;
                 transaction.update(tenantRef, { balance: currentBalance + amount });
             }
 
-            // 2. Revert invoice statuses and amounts paid
-            // This is a simplified reversal. For a real-world app, you might need more
-            // complex logic to figure out which payment applied to which part of an invoice.
-            for (const invoiceId of invoiceIds) {
-                const invoiceRef = db.collection('invoices').doc(invoiceId);
-                const invoiceDoc = await transaction.get(invoiceRef);
+            // 2. Update invoices
+            invoiceDocs.forEach((invoiceDoc) => {
                 if (invoiceDoc.exists) {
                     const invoiceData = invoiceDoc.data();
                     const currentAmountPaid = invoiceData?.amountPaid ?? 0;
-                    
-                    // Simple reversal: subtract the original payment amount from amount paid.
-                    // This assumes the payment was fully applied to this invoice, which might
-                    // not be true for complex scenarios but works for "Mark as Paid".
                     const newAmountPaid = Math.max(0, currentAmountPaid - amount);
-                    
+
                     let newStatus = 'unpaid';
                     if (newAmountPaid > 0 && newAmountPaid < (invoiceData?.amount ?? 0)) {
                         newStatus = 'partially-paid';
-                    } else if (newAmountPaid <= 0) {
-                         newStatus = 'unpaid';
                     }
-                    
-                    transaction.update(invoiceRef, {
+
+                    transaction.update(invoiceDoc.ref, {
                         amountPaid: newAmountPaid,
                         status: newStatus,
                         paidDate: admin.firestore.FieldValue.delete(),
                     });
                 }
-            }
+            });
 
-            // 3. Delete the payment record
+            // 3. Delete payment
             transaction.delete(paymentRef);
         });
 
@@ -548,9 +553,7 @@ export const deletePayment = onCall(async (request) => {
 
     } catch (error: any) {
         console.error('Error deleting payment:', error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
+        if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
     }
 });
