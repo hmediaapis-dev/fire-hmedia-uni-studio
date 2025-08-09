@@ -1,3 +1,4 @@
+
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { Tenant, Payment } from '@/types';
@@ -10,6 +11,9 @@ export const getTenantsFunction = httpsCallable<void, any[]>(functions, 'getTena
 
 export const recordPaymentFunction = httpsCallable<Omit<Payment, 'id' | 'paymentDate'>, { success: boolean, message: string }>(functions, 'recordPayment');
 export const deletePaymentFunction = httpsCallable<{ paymentId: string }, { success: boolean, message: string }>(functions, 'deletePayment');
+
+// Admin functions
+export const setAdminClaim = httpsCallable<{ email: string }, { message: string }>(functions, 'setAdminClaim');
 
 
 export async function runManualInvoiceGeneration() {

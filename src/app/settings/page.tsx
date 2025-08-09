@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,10 @@ import { useState, useEffect } from 'react';
 import { getSettings, updateSettings } from '@/services/settings';
 import type { Settings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { runManualInvoiceGeneration } from '@/services/functions';
+import { runManualInvoiceGeneration, setAdminClaim } from '@/services/functions';
+import { useAuth } from '@/context/auth-context';
 
 
 const defaultSettings: Settings = {
@@ -38,10 +40,15 @@ const defaultSettings: Settings = {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isClaimingAdmin, setIsClaimingAdmin] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+
 
   useEffect(() => {
     async function loadSettings() {
@@ -64,6 +71,16 @@ export default function SettingsPage() {
     }
     loadSettings();
   }, [toast]);
+
+  useEffect(() => {
+    async function checkAdminStatus() {
+        const idTokenResult = await user?.getIdTokenResult();
+        setIsAdmin(idTokenResult?.claims.admin === true);
+    }
+    if(user) {
+        checkAdminStatus();
+    }
+  }, [user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -128,6 +145,31 @@ export default function SettingsPage() {
         setIsGenerating(false);
     }
   };
+  
+  const handleMakeAdmin = async (email: string | null | undefined) => {
+    if(!email) {
+        toast({ title: "Error", description: "No email provided.", variant: "destructive"});
+        return;
+    }
+    if (!confirm(`Are you sure you want to grant admin privileges to ${email}?`)) {
+        return;
+    }
+    setIsClaimingAdmin(true);
+    try {
+        const result: any = await setAdminClaim({ email });
+        toast({ title: "Success", description: result.data.message });
+        // Force refresh of the token to get the new claim
+        await user?.getIdToken(true);
+        // Re-check admin status
+        const idTokenResult = await user?.getIdTokenResult(true);
+        setIsAdmin(idTokenResult?.claims.admin === true);
+    } catch(error: any) {
+        console.error("Failed to set admin claim:", error);
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+        setIsClaimingAdmin(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -273,7 +315,7 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">
                 Manually trigger this month's invoice generation.
               </p>
-              <Button onClick={handleRunInvoicesNow} variant="secondary" disabled={isGenerating}>
+              <Button onClick={handleRunInvoicesNow} variant="secondary" disabled={isGenerating || !isAdmin}>
                   {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {isGenerating ? 'Generating...' : 'Run Now'}
               </Button>
@@ -281,13 +323,57 @@ export default function SettingsPage() {
           </CardFooter>
         </Card>
 
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Admin Account Required</AlertTitle>
-          <AlertDescription>
-            To use the "Run Now" invoice generation feature, you must be logged in with an account that has an `admin: true` custom claim. Without this, the function call will be rejected for security reasons.
-          </AlertDescription>
-        </Alert>
+        <Card>
+            <CardHeader>
+                <CardTitle>Admin Settings</CardTitle>
+                <CardDescription>
+                    Manage user roles and administrative privileges.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isAdmin ? (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-green-600">
+                            <ShieldCheck className="h-5 w-5" />
+                            <p className="font-medium">You have administrative privileges.</p>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="new-admin-email">Grant Admin to User</Label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    id="new-admin-email" 
+                                    type="email" 
+                                    placeholder="user@example.com" 
+                                    value={newAdminEmail}
+                                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                                />
+                                <Button onClick={() => handleMakeAdmin(newAdminEmail)} disabled={isClaimingAdmin || !newAdminEmail}>
+                                    {isClaimingAdmin && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Grant Admin
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>No Admin Privileges</AlertTitle>
+                            <AlertDescription>
+                                Your account does not have administrative rights. You cannot run protected actions.
+                            </AlertDescription>
+                        </Alert>
+                         <Button onClick={() => handleMakeAdmin(user?.email)} disabled={isClaimingAdmin}>
+                            {isClaimingAdmin && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Become First Admin
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                            Click this to grant your account administrative privileges. This can only be done if no other admins exist.
+                        </p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
 
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={isSaving}>

@@ -1,3 +1,4 @@
+
 /**
  * Import function triggers from their respective submodules:
  *
@@ -33,37 +34,51 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-//Initialize logging client
-/*const logging = new Logging();         //these two lines start a log
-const log = logging.log("my-log");       //second line of log
-const metadata = {
-  resource: { type: "cloud_function", labels: { function_name: "scheduledHelloWorldV2" } },
-};  //this adds granular metadata for the log
-
-export const scheduledHelloWorldV2 = onSchedule("0 5 * * *", async (event) => {
-  // Create a log entry
-  const entry = log.entry(metadata, "Hello, world from scheduledHelloWorldV2");
-
-  try {
-    await log.write(entry);
-    logger.log("Logged: Hello, world from scheduledHelloWorldV2");
-  } catch (error) {
-    logger.error("Logging error:", error);
+export const setAdminClaim = onCall(async (request) => {
+  // 1. Check if the user is authenticated at all.
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
   }
-});*/
+  
+  const email = request.data.email;
+  const callingUserUID = request.auth.uid;
+  const callingUserClaims = request.auth.token;
 
-/*export const helloWorld = functions.https.onRequest(async (req, res) => {
-  const entry = log.entry(metadata, 'Hello, world'); //this creates a variable to be sent to the log file my-log
-
-  try {
-    await log.write(entry);
-    console.log('Logged: Hello, world');
-    res.status(200).send('Hello World logged!'); //this send something to the screen
-  } catch (error) {
-    console.error('Logging error:', error);
-    res.status(500).send('Error logging message.');
+  // 2. Check if the caller is already an admin.
+  if (callingUserClaims.admin === true) {
+    console.log(`Admin user ${callingUserClaims.email} is setting claim for ${email}`);
+    try {
+      const user = await admin.auth().getUserByEmail(email);
+      await admin.auth().setCustomUserClaims(user.uid, { admin: true });
+      return { message: `Success! ${email} has been made an admin.` };
+    } catch (error: any) {
+      console.error("Error setting admin claim by admin:", error);
+      throw new HttpsError('internal', error.message);
+    }
   }
-});*/
+
+  // 3. If the caller is NOT an admin, check if any admins exist.
+  // This is the "bootstrap" case for the first admin.
+  console.log("Caller is not an admin. Checking for existing admins...");
+  const listUsersResult = await admin.auth().listUsers(1000);
+  const hasExistingAdmin = listUsersResult.users.some(user => !!user.customClaims?.admin);
+
+  if (hasExistingAdmin) {
+    console.log("An admin already exists. Denying non-admin request.");
+    throw new HttpsError('permission-denied', 'Only an admin can grant this role.');
+  }
+
+  // 4. If NO admins exist, allow the caller to make themselves the first admin.
+  console.log("No admins found. Promoting calling user to first admin.");
+  try {
+    await admin.auth().setCustomUserClaims(callingUserUID, { admin: true });
+    return { message: `Success! You are now the first admin.` };
+  } catch (error: any) {
+    console.error("Error setting first admin claim:", error);
+    throw new HttpsError('internal', error.message);
+  }
+});
+
 
 export const generateMonthlyInvoices = onSchedule(
   {
@@ -539,5 +554,3 @@ export const deletePayment = onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
     }
 });
-
-    
