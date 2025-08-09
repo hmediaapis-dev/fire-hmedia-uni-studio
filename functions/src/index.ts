@@ -447,10 +447,97 @@ export const recordPayment = onCall(async (request) => {
         return { success: true, message: 'Payment recorded successfully.' };
 
     } catch (error: any) {
+        // Log the full error to the console for debugging
         console.error('Error recording payment:', error);
+
+        // If it's already a known HttpsError, rethrow it
         if (error instanceof HttpsError) {
             throw error;
         }
-        throw new HttpsError('internal', 'An internal error occurred while recording the payment.');
+
+        // For unknown errors, throw a generic internal error
+        throw new HttpsError('internal', 'An internal error occurred while recording the payment. Check function logs for details.');
     }
 });
+
+export const deletePayment = onCall(async (request) => {
+    // Auth checks
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Data validation
+    const { paymentId } = request.data;
+    if (!paymentId) {
+        throw new HttpsError('invalid-argument', 'Missing required payment ID.');
+    }
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const paymentRef = db.collection('payments').doc(paymentId);
+            const paymentDoc = await transaction.get(paymentRef);
+
+            if (!paymentDoc.exists) {
+                throw new HttpsError('not-found', 'Payment not found.');
+            }
+
+            const paymentData = paymentDoc.data();
+            const { tenantId, amount, invoiceIds } = paymentData as any;
+
+            // 1. Revert tenant's balance
+            const tenantRef = db.collection('tenants').doc(tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+            if (tenantDoc.exists) {
+                const currentBalance = tenantDoc.data()?.balance ?? 0;
+                transaction.update(tenantRef, { balance: currentBalance + amount });
+            }
+
+            // 2. Revert invoice statuses and amounts paid
+            // This is a simplified reversal. For a real-world app, you might need more
+            // complex logic to figure out which payment applied to which part of an invoice.
+            for (const invoiceId of invoiceIds) {
+                const invoiceRef = db.collection('invoices').doc(invoiceId);
+                const invoiceDoc = await transaction.get(invoiceRef);
+                if (invoiceDoc.exists) {
+                    const invoiceData = invoiceDoc.data();
+                    const currentAmountPaid = invoiceData?.amountPaid ?? 0;
+                    
+                    // Simple reversal: subtract the original payment amount from amount paid.
+                    // This assumes the payment was fully applied to this invoice, which might
+                    // not be true for complex scenarios but works for "Mark as Paid".
+                    const newAmountPaid = Math.max(0, currentAmountPaid - amount);
+                    
+                    let newStatus = 'unpaid';
+                    if (newAmountPaid > 0 && newAmountPaid < (invoiceData?.amount ?? 0)) {
+                        newStatus = 'partially-paid';
+                    } else if (newAmountPaid <= 0) {
+                         newStatus = 'unpaid';
+                    }
+                    
+                    transaction.update(invoiceRef, {
+                        amountPaid: newAmountPaid,
+                        status: newStatus,
+                        paidDate: admin.firestore.FieldValue.delete(),
+                    });
+                }
+            }
+
+            // 3. Delete the payment record
+            transaction.delete(paymentRef);
+        });
+
+        return { success: true, message: 'Payment deleted and records reverted successfully.' };
+
+    } catch (error: any) {
+        console.error('Error deleting payment:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
+    }
+});
+
+    
