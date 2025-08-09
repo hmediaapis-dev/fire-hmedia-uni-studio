@@ -402,42 +402,42 @@ export const recordPayment = onCall(async (request) => {
     try {
         await db.runTransaction(async (transaction) => {
             const tenantRef = db.collection('tenants').doc(tenantId);
+            const invoiceRefs = invoiceIds.map(id => db.collection('invoices').doc(id));
+            
+            // --- 1. READS FIRST ---
             const tenantDoc = await transaction.get(tenantRef);
+            const invoiceDocs = await Promise.all(invoiceRefs.map(ref => transaction.get(ref)));
 
             if (!tenantDoc.exists) {
                 throw new HttpsError('not-found', 'Tenant not found.');
             }
 
-            // 1. Create the payment record
+            // --- 2. WRITES AFTER ---
             const paymentRef = db.collection('payments').doc();
             transaction.set(paymentRef, {
                 ...request.data,
                 paymentDate: admin.firestore.Timestamp.now(),
             });
 
-            // 2. Update tenant's balance
+            // Update tenant's balance
             const currentBalance = tenantDoc.data()?.balance ?? 0;
             const newBalance = currentBalance - amount;
             transaction.update(tenantRef, { balance: newBalance });
 
-            // 3. Update the invoices
+            // Update the invoices
             let remainingAmountToApply = amount;
 
-            for (const invoiceId of invoiceIds) {
+            for (const invoiceDoc of invoiceDocs) {
                 if (remainingAmountToApply <= 0) break;
-
-                const invoiceRef = db.collection('invoices').doc(invoiceId);
-                const invoiceDoc = await transaction.get(invoiceRef);
-
                 if (!invoiceDoc.exists) {
-                    console.warn(`Invoice ${invoiceId} not found during payment transaction.`);
-                    continue; // Skip if invoice not found
+                    console.warn(`Invoice ${invoiceDoc.id} not found during payment transaction.`);
+                    continue;
                 }
 
                 const invoiceData = invoiceDoc.data();
                 const amountDue = (invoiceData?.amount ?? 0) - (invoiceData?.amountPaid ?? 0);
 
-                if (amountDue <= 0) continue; // Skip already paid invoices
+                if (amountDue <= 0) continue;
 
                 const amountToApplyToInvoice = Math.min(remainingAmountToApply, amountDue);
                 const newAmountPaid = (invoiceData?.amountPaid ?? 0) + amountToApplyToInvoice;
@@ -449,10 +449,10 @@ export const recordPayment = onCall(async (request) => {
                     newStatus = 'partially-paid';
                 }
                 
-                transaction.update(invoiceRef, {
+                transaction.update(invoiceDoc.ref, {
                     amountPaid: newAmountPaid,
                     status: newStatus,
-                    paidDate: admin.firestore.Timestamp.now(), // Update paidDate on any payment
+                    paidDate: admin.firestore.Timestamp.now(),
                 });
 
                 remainingAmountToApply -= amountToApplyToInvoice;
