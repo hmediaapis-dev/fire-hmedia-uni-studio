@@ -12,14 +12,13 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
-  const { signInWithGoogle, user, signInWithEmail, createUserWithEmail } = useAuth();
+  const { signInWithGoogle, user, signInWithEmail } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -31,12 +30,7 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSigningIn(true);
     try {
-      if (isSignUp) {
-        await createUserWithEmail(email, password);
-        toast({ title: 'Account Created', description: 'You have been successfully signed up.' });
-      } else {
-        await signInWithEmail(email, password);
-      }
+      await signInWithEmail(email, password);
       router.push('/');
     } catch (error: any) {
       console.error('Email/Password Auth Error:', error);
@@ -55,7 +49,7 @@ export default function LoginPage() {
     try {
       await signInWithGoogle();
       router.push('/');
-    } catch (error: any) {
+    } catch (error: any)      {
       console.error('Google Sign-In Error:', error);
       toast({
         title: 'Sign-In Failed',
@@ -76,7 +70,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl">H Media Unitrack</CardTitle>
           <CardDescription>
-            {isSignUp ? 'Create an account to get started.' : 'Sign in to your account.'}
+            Sign in to your account to continue.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -105,16 +99,9 @@ export default function LoginPage() {
               />
             </div>
             <Button className="w-full" type="submit" disabled={isSigningIn}>
-              {isSigningIn ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+              {isSigningIn ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="mt-4 text-center text-sm">
-            {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-            <Button variant="link" onClick={() => setIsSignUp(!isSignUp)} className="pl-1">
-              {isSignUp ? 'Sign In' : 'Sign Up'}
-            </Button>
-          </div>
 
           <div className="my-4 relative">
             <div className="absolute inset-0 flex items-center">

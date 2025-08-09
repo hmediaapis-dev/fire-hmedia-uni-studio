@@ -8,7 +8,6 @@ import {
     GoogleAuthProvider, 
     signInWithPopup, 
     signOut, 
-    createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     type User 
 } from 'firebase/auth';
@@ -18,7 +17,6 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  createUserWithEmail: (email: string, pass: string) => Promise<any>;
   signInWithEmail: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<void>;
 }
@@ -27,7 +25,6 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   signInWithGoogle: async () => {},
-  createUserWithEmail: async (email, pass) => {},
   signInWithEmail: async (email, pass) => {},
   logout: async () => {},
 });
@@ -52,15 +49,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error("Error during Google Sign-In: ", error);
       throw error;
-    }
-  };
-
-  const createUserWithEmail = async (email: string, pass: string) => {
-    try {
-        return await createUserWithEmailAndPassword(auth, email, pass);
-    } catch (error) {
-        console.error("Error creating user: ", error);
-        throw error;
     }
   };
 
@@ -91,7 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, createUserWithEmail, signInWithEmail, logout }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );
