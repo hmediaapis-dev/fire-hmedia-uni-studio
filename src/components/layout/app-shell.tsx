@@ -34,6 +34,7 @@ import {
   LifeBuoy,
   LogOut,
   Mountain,
+  DollarSign,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -44,8 +45,9 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/tenants', label: 'Tenants', icon: Users },
   { href: '/units', label: 'Units', icon: Warehouse },
-  { href: '/billing', label: 'Invoices', icon: CreditCard },
-  { href: '/forms', label: 'Forms', icon: FileText },
+  { href: '/billing', label: 'Invoices', icon: FileText },
+  { href: '/payments', label: 'Payments', icon: DollarSign },
+  { href: '/forms', label: 'Forms', icon: CreditCard },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
