@@ -496,7 +496,7 @@ export default function UnitsPage() {
           <DialogHeader>
             <DialogTitle>Confirm Unassignment</DialogTitle>
             <DialogDescription>
-              Are you sure you want to unassign the tenant from {' '}
+              Are you sure you want to unassign the tenant from{' '}
               <strong>{unitToUnassign?.name}</strong>? This will make the unit available.
             </DialogDescription>
           </DialogHeader>

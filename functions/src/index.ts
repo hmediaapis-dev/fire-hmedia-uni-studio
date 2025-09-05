@@ -481,7 +481,7 @@ export const recordPayment = onCall(async (request) => {
     }
 });
 
-//PAYMENT CRUD SECTION - DELETE
+// PAYMENT CRUD SECTION - DELETE
 export const deletePayment = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
@@ -505,18 +505,25 @@ export const deletePayment = onCall(async (request) => {
                 throw new HttpsError('not-found', 'Payment not found.');
             }
 
-            const { tenantId, amount, invoiceIds } = paymentDoc.data() as any;
+            const { tenantId, amount, invoiceIds } = paymentDoc.data() as {
+                tenantId: string;
+                amount: number;
+                invoiceIds?: string[];
+            };
 
             const tenantRef = db.collection('tenants').doc(tenantId);
             const tenantDoc = await transaction.get(tenantRef);
 
             let invoiceDocs: FirebaseFirestore.DocumentSnapshot[] = [];
-            if (invoiceIds?.length) {
-                const invoiceRefs = invoiceIds.map((id: string) => db.collection('invoices').doc(id));
-                const snapshots = await Promise.all(invoiceRefs.map(ref => transaction.get(ref)));
+            if (invoiceIds && invoiceIds.length > 0) {
+                const invoiceRefs: FirebaseFirestore.DocumentReference[] = invoiceIds.map(
+                    (id: string) => db.collection('invoices').doc(id)
+                );
+                const snapshots = await Promise.all(
+                    invoiceRefs.map((ref: FirebaseFirestore.DocumentReference) => transaction.get(ref))
+                );
                 invoiceDocs = snapshots;
             }
-
 
             // === WRITE PHASE ===
 
@@ -527,11 +534,10 @@ export const deletePayment = onCall(async (request) => {
             }
 
             // 2. Update invoices
-            invoiceDocs.forEach((invoiceDoc) => {
+            for (const invoiceDoc of invoiceDocs) {
                 if (invoiceDoc.exists) {
-                    const invoiceData = invoiceDoc.data();
+                    const invoiceData = invoiceDoc.data() as any;
                     const currentAmountPaid = invoiceData?.amountPaid ?? 0;
-                    // This logic is simplified; real-world might need to track how much of *this* payment applied to the invoice
                     const newAmountPaid = Math.max(0, currentAmountPaid - amount);
 
                     let newStatus = 'unpaid';
@@ -545,7 +551,7 @@ export const deletePayment = onCall(async (request) => {
                         paidDate: admin.firestore.FieldValue.delete(),
                     });
                 }
-            });
+            }
 
             // 3. Delete payment
             transaction.delete(paymentRef);
@@ -559,6 +565,7 @@ export const deletePayment = onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
     }
 });
+
 
 //INVOICE CRUD SECTION - DELETE
 export const deleteInvoice = onCall(async (request) => {
