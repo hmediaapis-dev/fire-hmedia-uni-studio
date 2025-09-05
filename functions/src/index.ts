@@ -1,6 +1,7 @@
 
 
 
+
 /**
  * Import function triggers from their respective submodules:
  *
@@ -34,7 +35,7 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-
+//ADMIN SECTION
 export const setAdminClaim = onCall(async (request) => {
   // 1. Check if the user is authenticated at all.
   if (!request.auth) {
@@ -80,7 +81,7 @@ export const setAdminClaim = onCall(async (request) => {
   }
 });
 
-
+//CURRENT GENERATE INVOICE SECTION
 export const generateMonthlyInvoices = onSchedule(
   {
     schedule: '0 5 1 * *', // 5:00 AM on the 1st of every month
@@ -163,6 +164,7 @@ export const generateMonthlyInvoices = onSchedule(
   }
 );
 
+//CURRENT GENERATE INVOICE SECTION
 export const generateMonthlyInvoicesNow = onCall(async (request) => {
     // Check if the user is authenticated.
     if (!request.auth) {
@@ -258,7 +260,7 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
     }
 });
 
-
+//TENANT CRUD SECTION - CREATE
 export const addTenant = onCall(async (request) => {
     // Check auth
     if (!request.auth) {
@@ -295,7 +297,53 @@ export const addTenant = onCall(async (request) => {
     }
 });
 
+//TENANT CRUD SECTION - READ
+export const getTenants = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
 
+    try {
+        const snapshot = await db.collection('tenants').get();
+        const tenants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return tenants;
+    } catch (error) {
+        console.error('Error getting tenants:', error);
+        throw new HttpsError('internal', 'Could not retrieve tenants.');
+    }
+});
+
+//TENANT CRUD SECTION - UPDATE
+export const updateTenant = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const { tenantId, tenantData } = request.data;
+    if (!tenantId || !tenantData) {
+        throw new HttpsError('invalid-argument', 'The function must be called with "tenantId" and "tenantData".');
+    }
+
+    try {
+        const tenantRef = db.collection('tenants').doc(tenantId);
+        await tenantRef.update(tenantData);
+        return { message: 'Tenant updated successfully.' };
+    } catch (error) {
+        console.error('Error updating tenant:', error);
+        throw new HttpsError('internal', 'Could not update tenant.');
+    }
+});
+
+//TENANT CRUD SECTION - DELETE
 export const deleteTenant = onCall(async (request) => {
     // Check auth
     if (!request.auth) {
@@ -338,50 +386,7 @@ export const deleteTenant = onCall(async (request) => {
     }
 });
 
-export const updateTenant = onCall(async (request) => {
-    // Check auth
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
-    if (request.auth.token.admin !== true) {
-        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
-    }
-
-    // Validate data
-    const { tenantId, tenantData } = request.data;
-    if (!tenantId || !tenantData) {
-        throw new HttpsError('invalid-argument', 'The function must be called with "tenantId" and "tenantData".');
-    }
-
-    try {
-        const tenantRef = db.collection('tenants').doc(tenantId);
-        await tenantRef.update(tenantData);
-        return { message: 'Tenant updated successfully.' };
-    } catch (error) {
-        console.error('Error updating tenant:', error);
-        throw new HttpsError('internal', 'Could not update tenant.');
-    }
-});
-
-export const getTenants = onCall(async (request) => {
-    // Check auth
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
-    if (request.auth.token.admin !== true) {
-        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
-    }
-
-    try {
-        const snapshot = await db.collection('tenants').get();
-        const tenants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        return tenants;
-    } catch (error) {
-        console.error('Error getting tenants:', error);
-        throw new HttpsError('internal', 'Could not retrieve tenants.');
-    }
-});
-
+//PAYMENT CRUD SECTION - CREATE
 export const recordPayment = onCall(async (request) => {
     // Auth checks
     if (!request.auth) {
@@ -476,6 +481,7 @@ export const recordPayment = onCall(async (request) => {
     }
 });
 
+//PAYMENT CRUD SECTION - DELETE
 export const deletePayment = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
@@ -504,19 +510,13 @@ export const deletePayment = onCall(async (request) => {
             const tenantRef = db.collection('tenants').doc(tenantId);
             const tenantDoc = await transaction.get(tenantRef);
 
-            let invoiceDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
-
+            let invoiceDocs: FirebaseFirestore.DocumentSnapshot[] = [];
             if (invoiceIds?.length) {
-                // Split invoiceIds into chunks of 10 for Firestore 'in' query limit
-                const chunkSize = 10;
-                for (let i = 0; i < invoiceIds.length; i += chunkSize) {
-                    const chunk = invoiceIds.slice(i, i + chunkSize);
-                    const invoicesQuery = db.collection('invoices')
-                        .where(admin.firestore.FieldPath.documentId(), 'in', chunk);
-                    const invoicesSnap = await transaction.get(invoicesQuery);
-                    invoiceDocs.push(...invoicesSnap.docs);
-                }
+                const invoiceRefs = invoiceIds.map((id: string) => db.collection('invoices').doc(id));
+                const snapshots = await Promise.all(invoiceRefs.map(ref => transaction.get(ref)));
+                invoiceDocs = snapshots;
             }
+
 
             // === WRITE PHASE ===
 
@@ -531,6 +531,7 @@ export const deletePayment = onCall(async (request) => {
                 if (invoiceDoc.exists) {
                     const invoiceData = invoiceDoc.data();
                     const currentAmountPaid = invoiceData?.amountPaid ?? 0;
+                    // This logic is simplified; real-world might need to track how much of *this* payment applied to the invoice
                     const newAmountPaid = Math.max(0, currentAmountPaid - amount);
 
                     let newStatus = 'unpaid';
@@ -559,9 +560,8 @@ export const deletePayment = onCall(async (request) => {
     }
 });
 
-
+//INVOICE CRUD SECTION - DELETE
 export const deleteInvoice = onCall(async (request) => {
-    // 1. Check auth
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
     }
@@ -574,35 +574,131 @@ export const deleteInvoice = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'The function must be called with an "invoiceId".');
     }
 
-    const invoiceRef = db.collection('invoices').doc(invoiceId);
-
     try {
         await db.runTransaction(async (transaction) => {
-            // === READ PHASE ===
+            const invoiceRef = db.collection('invoices').doc(invoiceId);
             const invoiceDoc = await transaction.get(invoiceRef);
+
             if (!invoiceDoc.exists) {
                 throw new HttpsError('not-found', 'Invoice not found.');
             }
 
-            const { tenantId, amount, amountPaid } = invoiceDoc.data() as any;
+            const invoiceData = invoiceDoc.data() as any;
+            const { tenantId, amount, amountPaid } = invoiceData;
+
             const tenantRef = db.collection('tenants').doc(tenantId);
             const tenantDoc = await transaction.get(tenantRef);
+            if (!tenantDoc.exists) {
+                throw new HttpsError('not-found', 'Tenant not found.');
+            }
+            const tenantData = tenantDoc.data();
+            let tenantBalance = tenantData?.balance ?? 0;
 
-            // === WRITE PHASE ===
-            if (tenantDoc.exists) {
-                const currentBalance = tenantDoc.data()?.balance ?? 0;
-                const amountToAdjust = amount - (amountPaid ?? 0);
-                transaction.update(tenantRef, { balance: currentBalance - amountToAdjust });
+            // 1. Find all payments linked to this invoice
+            const paymentsQuery = db.collection('payments')
+                .where('invoiceIds', 'array-contains', invoiceId);
+            const paymentsSnap = await transaction.get(paymentsQuery);
+            const payments = paymentsSnap.docs;
+
+            // 2. For each payment:
+            for (const paymentDoc of payments) {
+                const paymentData = paymentDoc.data() as any;
+                const paymentAmount = paymentData.amount;
+                const paymentTenantId = paymentData.tenantId;
+                const paymentInvoiceIds = paymentData.invoiceIds;
+
+                // Only proceed if payment belongs to same tenant (safety)
+                if (paymentTenantId === tenantId) {
+                    // Add back payment amount to tenant balance
+                    tenantBalance += paymentAmount;
+
+                    // Adjust all invoices linked to this payment
+                    for (const invId of paymentInvoiceIds) {
+                        const invRef = db.collection('invoices').doc(invId);
+                        const invDoc = await transaction.get(invRef);
+
+                        if (invDoc.exists) {
+                            const invData = invDoc.data() as any;
+                            const currentAmountPaid = invData?.amountPaid ?? 0;
+                            const newAmountPaid = Math.max(0, currentAmountPaid - paymentAmount);
+
+                            let newStatus = 'unpaid';
+                            if (newAmountPaid > 0 && newAmountPaid < (invData?.amount ?? 0)) {
+                                newStatus = 'partially-paid';
+                            }
+
+                            transaction.update(invRef, {
+                                amountPaid: newAmountPaid,
+                                status: newStatus,
+                                paidDate: admin.firestore.FieldValue.delete(),
+                            });
+                        }
+                    }
+
+                    // Update payment record - mark paymentMethod as "Invoice Deleted"
+                    transaction.update(paymentDoc.ref, {
+                        paymentMethod: "Invoice Deleted"
+                    });
+                }
             }
 
+            // 3. Adjust tenant balance for invoice deletion (unpaid portion)
+            const amountToAdjust = amount - (amountPaid ?? 0);
+            tenantBalance -= amountToAdjust;
+
+            transaction.update(tenantRef, { balance: tenantBalance });
+
+            // 4. Delete the invoice
             transaction.delete(invoiceRef);
         });
 
-        return { success: true, message: 'Invoice deleted and tenant balance updated.' };
+        return { success: true, message: 'Invoice deleted, linked payments updated, and tenant balance adjusted.' };
 
     } catch (error: any) {
         console.error('Error deleting invoice:', error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while deleting the invoice.');
+    }
+});
+
+// BALANCE ADJUSTMENT FUNCTION
+export const adjustBalance = onCall(async (request) => {
+    // 1. Auth and Admin Check
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'Only an admin can adjust balances.');
+    }
+
+    // 2. Data Validation
+    const { tenantId, amount } = request.data;
+    if (!tenantId || typeof amount !== 'number') {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "tenantId" (string) and "amount" (number).');
+    }
+
+    const tenantRef = db.collection('tenants').doc(tenantId);
+
+    try {
+        await db.runTransaction(async (transaction) => {
+            const tenantDoc = await transaction.get(tenantRef);
+
+            if (!tenantDoc.exists) {
+                throw new HttpsError('not-found', `Tenant with ID ${tenantId} not found.`);
+            }
+
+            const currentBalance = tenantDoc.data()?.balance ?? 0;
+            const newBalance = currentBalance + amount;
+
+            transaction.update(tenantRef, { balance: newBalance });
+        });
+
+        return { success: true, message: `Balance for tenant ${tenantId} adjusted successfully.` };
+    } catch (error: any) {
+        console.error('Error adjusting tenant balance:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An internal error occurred while adjusting the balance.');
     }
 });
