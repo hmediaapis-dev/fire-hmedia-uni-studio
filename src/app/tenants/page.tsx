@@ -598,7 +598,7 @@ export default function TenantsPage() {
             <DialogTitle>Delete Tenant</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete <strong>{tenantToDelete?.name}</strong>? 
-              This will permanently remove them from the system. This action cannot be undone.
+              This will permanently remove them from the system and unassign them from any units. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -617,5 +617,3 @@ export default function TenantsPage() {
     </>
   );
 }
-
-    
