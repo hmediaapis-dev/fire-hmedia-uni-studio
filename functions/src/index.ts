@@ -1,7 +1,4 @@
 
-
-
-
 /**
  * Import function triggers from their respective submodules:
  *
@@ -10,6 +7,9 @@
  *
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
+
+//import a utils file
+import { adjustTenantBalanceInTransaction } from './utils/cloudFunctionPrivateUtils';
 
 import {setGlobalOptions} from "firebase-functions/v2";
 
@@ -31,6 +31,7 @@ setGlobalOptions({ maxInstances: 10 });
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
+import { Payment } from '../src/utils/types';  //this is for the payment type in the payment CRUD functions
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -397,7 +398,7 @@ export const recordPayment = onCall(async (request) => {
     }
 
     // Data validation
-    const { tenantId, amount, paymentMethod, invoiceIds } = request.data;
+    const { tenantId, amount, paymentMethod, invoiceIds, transactionId, notes } = request.data;
     if (!tenantId || !amount || !paymentMethod || !invoiceIds || !Array.isArray(invoiceIds)) {
         throw new HttpsError('invalid-argument', 'Missing required payment information.');
     }
@@ -418,71 +419,90 @@ export const recordPayment = onCall(async (request) => {
                 throw new HttpsError('not-found', 'Tenant not found.');
             }
 
+            // Validate that all invoices exist and belong to the tenant
+            for (const invoiceDoc of invoiceDocs) {
+                if (!invoiceDoc.exists) {
+                    throw new HttpsError('not-found', `Invoice ${invoiceDoc.id} not found.`);
+                }
+                const invoiceData = invoiceDoc.data();
+                if (invoiceData?.tenantId !== tenantId) {
+                    throw new HttpsError('invalid-argument', `Invoice ${invoiceDoc.id} does not belong to tenant ${tenantId}.`);
+                }
+            }
+
             // --- 2. WRITES AFTER ---
+            
+            // Create the payment record
             const paymentRef = db.collection('payments').doc();
             transaction.set(paymentRef, {
-                ...request.data,
+                tenantId,
+                amount,
+                paymentMethod,
+                invoiceIds,
+                status: 'complete', // Default status for new payments
                 paymentDate: admin.firestore.Timestamp.now(),
+                ...(transactionId && { transactionId }), // Only include if provided
+                ...(notes && { notes }), // Only include if provided
             });
 
-            // Update tenant's balance
-            const currentBalance = tenantDoc.data()?.balance ?? 0;
-            const newBalance = currentBalance - amount;
-            transaction.update(tenantRef, { balance: newBalance });
+            // Update tenant's balance using our helper function
+            adjustTenantBalanceInTransaction(tenantRef, tenantDoc.data(), -amount, transaction);
 
             // Update the invoices
             let remainingAmountToApply = amount;
 
             for (const invoiceDoc of invoiceDocs) {
                 if (remainingAmountToApply <= 0) break;
-                if (!invoiceDoc.exists) {
-                    console.warn(`Invoice ${invoiceDoc.id} not found during payment transaction.`);
-                    continue;
-                }
-
+                
                 const invoiceData = invoiceDoc.data();
                 const amountDue = (invoiceData?.amount ?? 0) - (invoiceData?.amountPaid ?? 0);
 
-                if (amountDue <= 0) continue;
+                if (amountDue <= 0) continue; // Skip fully paid invoices
 
                 const amountToApplyToInvoice = Math.min(remainingAmountToApply, amountDue);
                 const newAmountPaid = (invoiceData?.amountPaid ?? 0) + amountToApplyToInvoice;
+                const invoiceAmount = invoiceData?.amount ?? 0;
                 
-                let newStatus = invoiceData?.status;
-                if (newAmountPaid >= (invoiceData?.amount ?? 0)) {
-                    newStatus = 'paid';
-                } else {
-                    newStatus = 'partially-paid';
-                }
-                
-                transaction.update(invoiceDoc.ref, {
+                let newStatus: string;
+                const updateData: any = {
                     amountPaid: newAmountPaid,
-                    status: newStatus,
-                    paidDate: admin.firestore.Timestamp.now(),
-                });
+                };
 
+                if (newAmountPaid >= invoiceAmount) {
+                    newStatus = 'paid';
+                    updateData.paidDate = admin.firestore.Timestamp.now(); // Only set paidDate when fully paid
+                } else if (newAmountPaid > 0) {
+                    newStatus = 'partially-paid';
+                    // Don't set paidDate for partially paid invoices
+                } else {
+                    newStatus = 'unpaid';
+                }
+
+                updateData.status = newStatus;
+                
+                transaction.update(invoiceDoc.ref, updateData);
                 remainingAmountToApply -= amountToApplyToInvoice;
+            }
+
+            // Log if there's remaining payment amount (overpayment)
+            if (remainingAmountToApply > 0) {
+                console.log(`Overpayment of ${remainingAmountToApply} applied to tenant ${tenantId} balance.`);
             }
         });
 
         return { success: true, message: 'Payment recorded successfully.' };
 
     } catch (error: any) {
-        // Log the full error to the console for debugging
         console.error('Error recording payment:', error);
-
-        // If it's already a known HttpsError, rethrow it
         if (error instanceof HttpsError) {
             throw error;
         }
-
-        // For unknown errors, throw a generic internal error
-        throw new HttpsError('internal', 'An internal error occurred while recording the payment. Check function logs for details.');
+        throw new HttpsError('internal', 'An internal error occurred while recording the payment.');
     }
 });
 
-// PAYMENT CRUD SECTION - DELETE
-export const deletePayment = onCall(async (request) => {
+// PAYMENT CRUD SECTION - VOID(DELETE)
+export const voidPayment = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
     }
@@ -505,14 +525,20 @@ export const deletePayment = onCall(async (request) => {
                 throw new HttpsError('not-found', 'Payment not found.');
             }
 
-            const { tenantId, amount, invoiceIds } = paymentDoc.data() as {
-                tenantId: string;
-                amount: number;
-                invoiceIds?: string[];
-            };
+            const paymentData = paymentDoc.data() as Payment;
+            const { tenantId, amount, invoiceIds, status } = paymentData;
+
+            // Check if payment is already voided
+            if (status === 'void') {
+                throw new HttpsError('failed-precondition', 'Payment is already voided.');
+            }
 
             const tenantRef = db.collection('tenants').doc(tenantId);
             const tenantDoc = await transaction.get(tenantRef);
+
+            if (!tenantDoc.exists) {
+                throw new HttpsError('not-found', 'Associated tenant not found.');
+            }
 
             let invoiceDocs: FirebaseFirestore.DocumentSnapshot[] = [];
             if (invoiceIds && invoiceIds.length > 0) {
@@ -527,42 +553,64 @@ export const deletePayment = onCall(async (request) => {
 
             // === WRITE PHASE ===
 
-            // 1. Update tenant balance
-            if (tenantDoc.exists) {
-                const currentBalance = tenantDoc.data()?.balance ?? 0;
-                transaction.update(tenantRef, { balance: currentBalance + amount });
-            }
+            // 1. Update tenant balance (add back the voided payment amount)
+            await adjustTenantBalanceInTransaction(tenantRef, tenantDoc.data(), -amount, transaction);
 
-            // 2. Update invoices
+            // 2. Update invoices - revert payment allocations
             for (const invoiceDoc of invoiceDocs) {
                 if (invoiceDoc.exists) {
                     const invoiceData = invoiceDoc.data() as any;
                     const currentAmountPaid = invoiceData?.amountPaid ?? 0;
-                    const newAmountPaid = Math.max(0, currentAmountPaid - amount);
+                    const invoiceAmount = invoiceData?.amount ?? 0;
+                    
+                    // Calculate payment allocation for this invoice
+                    // For simplicity, we're distributing the payment proportionally
+                    // You may want to adjust this based on your specific allocation logic
+                    const totalInvoiceAmount = invoiceDocs.reduce((sum, doc) => {
+                        if (doc.exists) {
+                            return sum + (doc.data()?.amount ?? 0);
+                        }
+                        return sum;
+                    }, 0);
+                    
+                    const allocationRatio = totalInvoiceAmount > 0 ? invoiceAmount / totalInvoiceAmount : 0;
+                    const paymentAllocationForThisInvoice = Math.round(amount * allocationRatio * 100) / 100;
+                    const newAmountPaid = Math.max(0, currentAmountPaid - paymentAllocationForThisInvoice);
 
+                    // Determine new invoice status
                     let newStatus = 'unpaid';
-                    if (newAmountPaid > 0 && newAmountPaid < (invoiceData?.amount ?? 0)) {
-                        newStatus = 'partially-paid';
+                    if (newAmountPaid > 0) {
+                        newStatus = newAmountPaid >= invoiceAmount ? 'paid' : 'partially-paid';
                     }
 
-                    transaction.update(invoiceDoc.ref, {
+                    const updateData: any = {
                         amountPaid: newAmountPaid,
                         status: newStatus,
-                        paidDate: admin.firestore.FieldValue.delete(),
-                    });
+                    };
+
+                    // Remove paidDate if invoice is no longer fully paid
+                    if (newStatus !== 'paid') {
+                        updateData.paidDate = admin.firestore.FieldValue.delete();
+                    }
+
+                    transaction.update(invoiceDoc.ref, updateData);
                 }
             }
 
-            // 3. Delete payment
-            transaction.delete(paymentRef);
+            // 3. Void the payment (don't delete, just mark as void)
+            transaction.update(paymentRef, {
+                status: 'void',
+                voidedDate: admin.firestore.FieldValue.serverTimestamp(),
+                voidedBy: /*request.auth.uid*/admin, // Track who voided the payment
+            });
         });
 
-        return { success: true, message: 'Payment deleted and records reverted successfully.' };
+        return { success: true, message: 'Payment voided and records reverted successfully.' };
 
     } catch (error: any) {
-        console.error('Error deleting payment:', error);
+        console.error('Error voiding payment:', error);
         if (error instanceof HttpsError) throw error;
-        throw new HttpsError('internal', 'An internal error occurred while deleting the payment.');
+        throw new HttpsError('internal', 'An internal error occurred while voiding the payment.');
     }
 });
 
@@ -665,47 +713,5 @@ export const deleteInvoice = onCall(async (request) => {
         console.error('Error deleting invoice:', error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while deleting the invoice.');
-    }
-});
-
-// BALANCE ADJUSTMENT FUNCTION
-export const adjustBalance = onCall(async (request) => {
-    // 1. Auth and Admin Check
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
-    }
-    if (request.auth.token.admin !== true) {
-        throw new HttpsError('permission-denied', 'Only an admin can adjust balances.');
-    }
-
-    // 2. Data Validation
-    const { tenantId, amount } = request.data;
-    if (!tenantId || typeof amount !== 'number') {
-        throw new HttpsError('invalid-argument', 'The function must be called with a "tenantId" (string) and "amount" (number).');
-    }
-
-    const tenantRef = db.collection('tenants').doc(tenantId);
-
-    try {
-        await db.runTransaction(async (transaction) => {
-            const tenantDoc = await transaction.get(tenantRef);
-
-            if (!tenantDoc.exists) {
-                throw new HttpsError('not-found', `Tenant with ID ${tenantId} not found.`);
-            }
-
-            const currentBalance = tenantDoc.data()?.balance ?? 0;
-            const newBalance = currentBalance + amount;
-
-            transaction.update(tenantRef, { balance: newBalance });
-        });
-
-        return { success: true, message: `Balance for tenant ${tenantId} adjusted successfully.` };
-    } catch (error: any) {
-        console.error('Error adjusting tenant balance:', error);
-        if (error instanceof HttpsError) {
-            throw error;
-        }
-        throw new HttpsError('internal', 'An internal error occurred while adjusting the balance.');
     }
 });

@@ -127,6 +127,7 @@ export default function InvoicesPage() {
                     tenantId: invoice.tenantId,
                     amount: invoice.amount,
                     paymentMethod: 'Other', // Or prompt for method
+                    status: 'complete', // Default status for new payments
                     invoiceIds: [invoice.id]
                 });
                 toast({ title: "Success", description: "Payment recorded successfully." });

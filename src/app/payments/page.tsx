@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { MoreHorizontal, Search, X, Trash2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Search, Trash2, X } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Payment, Tenant } from '@/types';
 import { getPayments, deletePayment } from '@/services/payments';
@@ -162,6 +162,10 @@ export default function PaymentsPage() {
                   </Button>
                 )}
             </div>
+            <Button>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Manual Payment
+            </Button>
         </div>
       </div>
 
