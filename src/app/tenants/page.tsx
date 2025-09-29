@@ -405,7 +405,7 @@ export default function TenantsPage() {
                   </TableCell>
                 </TableRow>
               )))}
-            </TableBody>
+            </Body>
           </Table>
         </div>
       </div>
