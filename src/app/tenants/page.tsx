@@ -405,7 +405,7 @@ export default function TenantsPage() {
                   </TableCell>
                 </TableRow>
               )))}
-            </Body>
+            </TableBody>
           </Table>
         </div>
       </div>
@@ -595,9 +595,8 @@ export default function TenantsPage() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Tenant</DialogTitle>
+            <DialogTitle>Are you sure you want to delete {tenantToDelete?.name}?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <strong>{tenantToDelete?.name}</strong>? 
               This will permanently remove them from the system and unassign them from any units. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
