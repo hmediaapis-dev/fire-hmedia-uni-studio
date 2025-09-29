@@ -2,28 +2,34 @@
 import { recordPaymentFunction, deletePaymentFunction } from './functions';
 import type { Payment } from '@/types';
 import { db } from '@/lib/firebase';
-import {
+import { 
   collection,
   getDocs,
+  FirestoreDataConverter,
+  QueryDocumentSnapshot,
+  DocumentData,
+  WithFieldValue,
   Timestamp,
 } from 'firebase/firestore';
 
 
-const paymentConverter = {
-  toFirestore: (data: Partial<Payment>) => {
-    const firestoreData: any = {...data};
-    if (data.paymentDate) {
-        firestoreData.paymentDate = Timestamp.fromDate(data.paymentDate);
-    }
-    return firestoreData;
+const paymentConverter: FirestoreDataConverter<Payment> = {
+  toFirestore: (data: WithFieldValue<Payment>): DocumentData => {
+    const { id, ...rest } = data as Payment;
+    return {
+      ...rest,
+      paymentDate: rest.paymentDate instanceof Date 
+        ? Timestamp.fromDate(rest.paymentDate) 
+        : rest.paymentDate,
+    };
   },
-  fromFirestore: (snapshot: any, options: any): Payment => {
-    const data = snapshot.data(options);
+  fromFirestore: (snapshot: QueryDocumentSnapshot<DocumentData>): Payment => {
+    const data = snapshot.data();
     return {
       id: snapshot.id,
       ...data,
-      paymentDate: data.paymentDate.toDate(),
-    };
+      paymentDate: data.paymentDate?.toDate ? data.paymentDate.toDate() : new Date(),
+    } as unknown as Payment;
   },
 };
 

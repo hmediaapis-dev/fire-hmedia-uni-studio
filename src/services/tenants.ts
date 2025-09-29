@@ -1,28 +1,36 @@
 import { db } from '@/lib/firebase';
 import type { Tenant } from '@/types';
-import {
-  collection,
-  getDocs,
+import { 
+  collection, 
+  getDocs, 
   Timestamp,
+  FirestoreDataConverter,
+  QueryDocumentSnapshot,
+  DocumentData,
+  WithFieldValue,
+  PartialWithFieldValue,
 } from 'firebase/firestore';
 import { addTenantFunction, deleteTenantFunction, updateTenantFunction } from './functions';
 
 
 // A helper function to convert Firestore Timestamps to JS Dates
-const tenantConverter = {
-  toFirestore: (data: Omit<Tenant, 'id'>) => {
+const tenantConverter: FirestoreDataConverter<Tenant> = {
+  toFirestore: (data: WithFieldValue<Tenant>): DocumentData => {
+    const { id, ...rest } = data as Tenant;
     return {
-      ...data,
-      joinDate: Timestamp.fromDate(data.joinDate),
+      ...rest,
+      joinDate: rest.joinDate instanceof Date 
+        ? Timestamp.fromDate(rest.joinDate) 
+        : rest.joinDate,
     };
   },
-  fromFirestore: (snapshot: any, options: any): Tenant => {
-    const data = snapshot.data(options);
+  fromFirestore: (snapshot: QueryDocumentSnapshot<DocumentData>): Tenant => {
+    const data = snapshot.data();
     return {
       id: snapshot.id,
       ...data,
-      joinDate: data.joinDate.toDate(),
-    };
+      joinDate: data.joinDate?.toDate ? data.joinDate.toDate() : new Date(),
+    } as Tenant;
   },
 };
 
@@ -32,9 +40,15 @@ export async function getTenants(): Promise<Tenant[]> {
   return snapshot.docs.map((doc) => doc.data());
 }
 
-export async function addTenant(tenantData: Omit<Tenant, 'id' | 'joinDate' | 'units' | 'rent' | 'balance' >): Promise<string> {
-    const result: any = await addTenantFunction(tenantData);
-    return result.data.id;
+export async function addTenant(tenantData: Omit<Tenant, 'id' | 'joinDate' | 'units' | 'rent' | 'balance'>): Promise<string> {
+  const completeData = {
+      ...tenantData,
+      units: [],      // No units assigned yet
+      rent: 0,        // No rent yet
+      balance: 0,     // No balance yet
+  };
+  const result: any = await addTenantFunction(completeData);
+  return result.data.id;
 }
 
 export async function updateTenant(tenantId: string, tenantData: Partial<Tenant>): Promise<void> {

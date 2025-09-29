@@ -213,8 +213,12 @@ export default function PaymentsPage() {
                    <TableCell>
                     {format(payment.paymentDate, 'LLL dd, yyyy')}
                   </TableCell>
-                   <TableCell>
-                    <Badge variant="outline">{payment.paymentMethod}</Badge>
+                  <TableCell>
+                    {payment.status === 'void' ? (
+                      <Badge variant="destructive">Void</Badge>
+                    ) : (
+                      <Badge variant="outline">{payment.paymentMethod}</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
@@ -236,13 +240,21 @@ export default function PaymentsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem 
+                        {/* Show void info for voided payments */}
+                        {payment.status === 'void' && (
+                          <DropdownMenuItem disabled className="text-muted-foreground">
+                            {/*<span className="mr-2 h-4 w-4" /> Makes a column space for the icon*/}
+                            Payment Voided
+                          </DropdownMenuItem>
+                        )}
+                        {payment.status !== 'void' && (
+                          <DropdownMenuItem 
                             className="text-destructive"
                             onClick={() => showDeleteConfirmation(payment)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete & Revert
-                        </DropdownMenuItem>
+                          >
+                            Void Payment
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -257,14 +269,14 @@ export default function PaymentsPage() {
             <AlertDialogHeader>
             <AlertDialogTitle>Delete Payment?</AlertDialogTitle>
             <AlertDialogDescription>
-                Are you sure you want to delete this payment of <strong>${paymentToDelete?.amount.toFixed(2)}</strong> for <strong>{tenantsById[paymentToDelete?.tenantId || '']?.name}</strong>?
+                Are you sure you want to void this payment of <strong>${paymentToDelete?.amount.toFixed(2)}</strong> for <strong>{tenantsById[paymentToDelete?.tenantId || '']?.name}</strong>?
                 This action cannot be undone and will revert the tenant's balance and associated invoices.
             </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeletePayment} className="bg-destructive hover:bg-destructive/90">
-                Confirm Delete
+                Confirm Void
             </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
