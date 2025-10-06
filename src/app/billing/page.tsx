@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import Link from "next/link";
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle, Search, X } from 'lucide-react';
@@ -92,7 +93,7 @@ export default function InvoicesPage() {
       filtered = filtered.filter(invoice => {
           const tenant = tenantsById[invoice.tenantId];
           return (
-              invoice.id.toLowerCase().includes(lowercasedTerm) ||
+              invoice.invoiceNumber.toString().toLowerCase().includes(lowercasedTerm) ||
               tenant?.name.toLowerCase().includes(lowercasedTerm) ||
               tenant?.email.toLowerCase().includes(lowercasedTerm)
           )
@@ -221,7 +222,7 @@ export default function InvoicesPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Invoice ID</TableHead>
+              <TableHead>Invoice Number</TableHead>
               <TableHead>Tenant</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Due Date</TableHead>
@@ -232,21 +233,30 @@ export default function InvoicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
-                <TableRow>
-                    <TableCell colSpan={6} className="text-center">Loading invoices from Firestore...</TableCell>
-                </TableRow>
-            ) : filteredInvoices.length === 0 ? (
-                <TableRow>
-                    <TableCell colSpan={6} className="text-center">
-                        {searchTerm || dateRange?.from ? 'No invoices match your filters.' : 'No invoices found.'}
-                    </TableCell>
-                </TableRow>
-            ) : (filteredInvoices
-              .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime())
-              .map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell className="font-mono text-sm">{invoice.id}</TableCell>
+          {isLoading ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center">Loading invoices from Firestore...</TableCell>
+            </TableRow>
+          ) : filteredInvoices.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center">
+                {searchTerm || dateRange?.from ? 'No invoices match your filters.' : 'No invoices found.'}
+              </TableCell>
+            </TableRow>
+          ) : (filteredInvoices
+            .sort((a, b) => {
+              // First, sort by invoice number (descending - highest first)
+              if (b.invoiceNumber !== a.invoiceNumber) {
+                return b.invoiceNumber - a.invoiceNumber;
+              }
+              // If invoice numbers are equal, sort by createdAt (descending - most recent first)
+              const aTime = a.createdAt?.getTime() ?? 0;
+              const bTime = b.createdAt?.getTime() ?? 0;
+              return bTime - aTime;
+            })
+            .map((invoice) => (
+                <TableRow key={invoice.invoiceNumber}>
+                  <TableCell className="font-mono text-sm">{invoice.invoiceNumber}</TableCell>
                   <TableCell>
                     <div className="font-medium">
                       {tenantsById[invoice.tenantId]?.name || 'N/A'}
@@ -289,7 +299,11 @@ export default function InvoicesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Invoice</DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Link href={`/invoice/${invoice.id}`}>
+                            View Invoice
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                             onClick={() => handleMarkAsPaid(invoice)}
                             disabled={invoice.status !== 'unpaid'}

@@ -3,7 +3,7 @@ import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { Tenant, Payment } from '@/types';
 
-const generateMonthlyInvoicesNow = httpsCallable(functions, 'generateMonthlyInvoicesNow');
+export const generateMonthlyInvoicesNow = httpsCallable(functions, 'generateMonthlyInvoicesNow');
 export const addTenantFunction = httpsCallable<Omit<Tenant, 'id' | 'joinDate'>, { id: string }>(functions, 'addTenant');
 export const deleteTenantFunction = httpsCallable<{ tenantId: string }, void>(functions, 'deleteTenant');
 export const updateTenantFunction = httpsCallable<{ tenantId: string; tenantData: Partial<Tenant> }, void>(functions, 'updateTenant');
@@ -17,7 +17,7 @@ export const deleteInvoiceFunction = httpsCallable<{ invoiceId: string }, void>(
 // Admin functions
 export const setAdminClaim = httpsCallable<{ email: string }, { message: string }>(functions, 'setAdminClaim');
 
-
+//this could be rmeoved, its a helper on the settings page
 export async function runManualInvoiceGeneration() {
     return await generateMonthlyInvoicesNow();
 }

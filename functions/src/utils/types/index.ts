@@ -26,6 +26,8 @@ export type Unit = {
 
 export type Invoice = {
   id: string;
+  invoiceNumber: number;
+  monthRange: string;
   tenantId: string;
   unitId?: string;
   amount: number;
@@ -34,6 +36,7 @@ export type Invoice = {
   status: 'paid' | 'unpaid' | 'void' | 'partially-paid';
   createdAt?: Date;
   amountPaid?: number;
+  notes: string;
 };
 
 export type Payment = {
@@ -68,6 +71,7 @@ export type Settings = {
   mainGateCode: string;
   autoBilling: boolean;
   invoiceDay: number;
+  currentInvoiceNum: number; // Add this line
   defaultRates: {
     [key: string]: number;
   };

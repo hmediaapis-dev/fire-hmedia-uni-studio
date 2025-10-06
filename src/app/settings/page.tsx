@@ -10,12 +10,22 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect } from 'react';
-import { getSettings, updateSettings } from '@/services/settings';
+import { getSettings, updateSettings } from '@/services/settings';                        //Services for getting and updating settings
 import type { Settings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
@@ -30,6 +40,7 @@ const defaultSettings: Settings = {
   contactPhone: '',
   mainGateCode: '',
   autoBilling: true,
+  currentInvoiceNum: 100,
   invoiceDay: 1,
   defaultRates: {
     '10x10': 0,
@@ -38,7 +49,9 @@ const defaultSettings: Settings = {
   }
 };
 
+
 export default function SettingsPage() {
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
@@ -124,25 +137,23 @@ export default function SettingsPage() {
   };
 
   const handleRunInvoicesNow = async () => {
-    if (!confirm("Are you sure you want to run the monthly invoice generation process now? This can't be undone.")) {
-        return;
-    }
     setIsGenerating(true);
     try {
-        const result: any = await runManualInvoiceGeneration();
-        toast({
-            title: "Invoices Generated",
-            description: `${result.data.invoicesCreated} new invoices were created.`,
-        });
+      const result: any = await runManualInvoiceGeneration();
+      toast({
+        title: "Invoices Generated",
+        description: `${result.data.invoicesCreated} new invoices were created.`,
+      });
     } catch(error: any) {
-        console.error("Failed to run manual invoice generation:", error);
-        toast({
-            title: "Error",
-            description: error.message || "An unexpected error occurred. Check the console for details.",
-            variant: "destructive",
-        });
+      console.error("Failed to run manual invoice generation:", error);
+      toast({
+        title: "Error",
+        description: error.message || "An unexpected error occurred. Check the console for details.",
+        variant: "destructive",
+      });
     } finally {
-        setIsGenerating(false);
+      setIsGenerating(false);
+      setIsConfirmOpen(false); // Close dialog after completion
     }
   };
   
@@ -267,6 +278,22 @@ export default function SettingsPage() {
                 Day of the month invoices will be generated (1-28).
               </p>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoiceNum">Current Invoice Number</Label>
+              <Input
+              id="invoiceNum"
+              type="number"
+              value={settings.currentInvoiceNum}
+              onChange={(e) => setSettings(prev => ({ 
+                ...prev, 
+                currentInvoiceNum: parseInt(e.target.value, 10) || 100 // Fixed: update currentInvoiceNum
+              }))}
+              className="w-24"
+            />
+              <p className="text-xs text-muted-foreground">
+                Change this only if invoice numbers are off and a reset is in order.
+              </p>
+            </div>
             <Separator />
             <div className="space-y-2">
               <Label>Default Unit Rates</Label>
@@ -315,9 +342,11 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">
                 Manually trigger this month's invoice generation.
               </p>
-              <Button onClick={handleRunInvoicesNow} variant="secondary" disabled={isGenerating || !isAdmin}>
-                  {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isGenerating ? 'Generating...' : 'Run Now'}
+              <Button 
+                onClick={() => setIsConfirmOpen(true)} 
+                disabled={isGenerating || !isAdmin}
+              >
+                {isGenerating ? "Generating..." : "Run Invoices Now"}
               </Button>
             </div>
           </CardFooter>
@@ -382,6 +411,27 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generate Invoices Now?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will run the monthly invoice generation process immediately. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRunInvoicesNow}>
+              Generate Invoices
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
+
+    
   );
 }

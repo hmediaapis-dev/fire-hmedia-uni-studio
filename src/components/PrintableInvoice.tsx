@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Printer, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
-import type { Invoice, Tenant } from '@/types';
+import type { Invoice, Tenant, Unit } from '@/types';
 import { getInvoices, updateInvoice, deleteInvoice } from '@/services/invoices';
 import { getTenants } from '@/services/tenants';
 import { recordPayment } from '@/services/payments';
@@ -42,7 +42,15 @@ const getStatusBadge = (status: Invoice['status']) => {
   );
 };
 
-export function PrintableInvoice({ invoice }: { invoice: Invoice }) {
+export function PrintableInvoice({ 
+    invoice, 
+    tenant, 
+    unit 
+  }: { 
+    invoice: Invoice;
+    tenant: Tenant | null;
+    unit: Unit | null;
+  }) {
   const handlePrint = () => {
     window.print();
   };
@@ -66,13 +74,13 @@ export function PrintableInvoice({ invoice }: { invoice: Invoice }) {
             <div className="flex justify-between items-start mb-12">
               <div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">INVOICE</h1>
-                <p className="text-gray-600">Invoice #{invoice.id}</p>
+                <p className="text-gray-600">Invoice #POPS-A{invoice.invoiceNumber}</p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900 mb-2">Your Company</div>
-                <p className="text-gray-600">123 Business Street</p>
-                <p className="text-gray-600">City, ST 12345</p>
-                <p className="text-gray-600">phone@company.com</p>
+                <div className="text-2xl font-bold text-gray-900 mb-2">Pop's Storage</div>
+                <p className="text-gray-600">802 N Main St</p>
+                <p className="text-gray-600">Lindale, TX 75771</p>
+                <p className="text-gray-600">(903) 882-9961</p>
               </div>
             </div>
 
@@ -80,9 +88,12 @@ export function PrintableInvoice({ invoice }: { invoice: Invoice }) {
             <div className="grid grid-cols-2 gap-8 mb-12">
               <div>
                 <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Bill To</h3>
-                <p className="text-lg font-medium text-gray-900">Tenant ID: {invoice.tenantId}</p>
-                {invoice.unitId && (
-                  <p className="text-gray-600">Unit: {invoice.unitId}</p>
+                <p className="text-lg font-medium text-gray-900">{tenant?.name || 'Unknown Tenant'}</p>
+                {tenant?.email && (
+                  <p className="text-gray-600">{tenant.email}</p>
+                )}
+                {unit && (
+                  <p className="text-gray-600">Unit: {unit.name || unit.name || 'N/A'}</p>
                 )}
               </div>
               <div>
@@ -112,6 +123,14 @@ export function PrintableInvoice({ invoice }: { invoice: Invoice }) {
             {/* Amount Details */}
             <div className="border-t border-b border-gray-200 py-6 mb-8">
               <div className="space-y-4">
+                <div className="flex text-small">
+                  <span className="font-semibold text-gray-600">For&nbsp;{invoice && (invoice.monthRange || 'N/A')}&nbsp;Unit&nbsp;</span>
+                  <span className="font-semibold">{unit && (unit.name || unit.name || 'N/A')}</span>
+                </div>
+                <div className="flex text-xs">
+                  <span className="text-gray-600">Notes:&nbsp;</span>
+                  <span className="font-semibold">{invoice && (invoice.notes || 'None')}</span>
+                </div>
                 <div className="flex justify-between text-lg">
                   <span className="text-gray-600">Invoice Amount:</span>
                   <span className="font-semibold">{formatCurrency(invoice.amount)}</span>
@@ -129,7 +148,7 @@ export function PrintableInvoice({ invoice }: { invoice: Invoice }) {
             <div className="bg-gray-50 p-6 rounded-lg">
               <div className="flex justify-between items-center">
                 <span className="text-2xl font-bold text-gray-900">
-                  {balance > 0 ? 'Balance Due:' : 'Total Paid:'}
+                  {balance > 0 ? 'Balance Due:' : 'Total Due:'}
                 </span>
                 <span className={`text-3xl font-bold ${balance > 0 ? 'text-gray-900' : 'text-green-600'}`}>
                   {formatCurrency(Math.abs(balance))}

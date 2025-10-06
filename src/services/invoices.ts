@@ -7,33 +7,40 @@ import {
   Timestamp,
   doc,
   updateDoc,
+  FirestoreDataConverter,
+  QueryDocumentSnapshot,
+  DocumentData,
+  WithFieldValue,
 } from 'firebase/firestore';
 import { deleteInvoiceFunction } from './functions';
 
 
-const invoiceConverter = {
-  toFirestore: (data: Partial<Invoice>) => {
-    const firestoreData: any = {...data};
-    if (data.dueDate) {
-        firestoreData.dueDate = Timestamp.fromDate(data.dueDate);
+const invoiceConverter: FirestoreDataConverter<Invoice> = {
+  toFirestore: (data: WithFieldValue<Invoice>): DocumentData => {
+    const { id, ...rest } = data as Invoice;
+    const firestoreData: any = {...rest};
+    
+    if (rest.dueDate instanceof Date) {
+      firestoreData.dueDate = Timestamp.fromDate(rest.dueDate);
     }
-    if (data.paidDate) {
-        firestoreData.paidDate = Timestamp.fromDate(data.paidDate);
+    if (rest.paidDate instanceof Date) {
+      firestoreData.paidDate = Timestamp.fromDate(rest.paidDate);
     }
-    if (data.createdAt) {
-        firestoreData.createdAt = Timestamp.fromDate(data.createdAt);
+    if (rest.createdAt instanceof Date) {
+      firestoreData.createdAt = Timestamp.fromDate(rest.createdAt);
     }
+    
     return firestoreData;
   },
-  fromFirestore: (snapshot: any, options: any): Invoice => {
-    const data = snapshot.data(options);
+  fromFirestore: (snapshot: QueryDocumentSnapshot<DocumentData>): Invoice => {
+    const data = snapshot.data();
     return {
       id: snapshot.id,
       ...data,
-      dueDate: data.dueDate.toDate(),
-      paidDate: data.paidDate ? data.paidDate.toDate() : undefined,
-      createdAt: data.createdAt ? data.createdAt.toDate() : undefined,
-    };
+      dueDate: data.dueDate?.toDate ? data.dueDate.toDate() : new Date(),
+      paidDate: data.paidDate?.toDate ? data.paidDate.toDate() : undefined,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : undefined,
+    } as unknown as Invoice;
   },
 };
 

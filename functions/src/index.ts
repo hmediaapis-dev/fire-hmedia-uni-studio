@@ -84,86 +84,122 @@ export const setAdminClaim = onCall(async (request) => {
 
 //CURRENT GENERATE INVOICE SECTION
 export const generateMonthlyInvoices = onSchedule(
-  {
-    schedule: '0 5 1 * *', // 5:00 AM on the 1st of every month
-    timeZone: 'America/Chicago',
-  },
-  async (event) => {
-    const today = new Date();
-    const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
-    const invoiceYear = today.getFullYear();
-
-    // Get all rented units
-    const unitsSnapshot = await db.collection('units')
-      .where('tenantId', '!=', null)
-      .get();
-
-    for (const unitDoc of unitsSnapshot.docs) {
-      const unit = unitDoc.data();
-      const unitId = unitDoc.id;
-
-      if (!unit.tenantId || !unit.startDate) continue;
-
-      const startDate = unit.startDate.toDate
-        ? unit.startDate.toDate()
-        : new Date(unit.startDate);
-
-      if (startDate > today) continue;
-
-      const tenantId = unit.tenantId;
-      const rent = unit.rent;
-
-      // Check if invoice already exists this month
-      const invoiceQuery = await db.collection('invoices')
-        .where('tenantId', '==', tenantId)
-        .where('dueDate', '>=', new Date(invoiceYear, invoiceMonth, 1))
-        .where('dueDate', '<', new Date(invoiceYear, invoiceMonth + 1, 1))
-        .get();
-
-      const alreadyExists = invoiceQuery.docs.some(
-        (doc) => doc.data().amount === rent
-      );
-      if (alreadyExists) continue;
-
-      // Create invoice
-      const newInvoice = {
-        tenantId,
-        unitId,
-        amount: rent,
-        dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
-        status: 'unpaid',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        amountPaid: 0,
-      };
-
-      await db.collection('invoices').add(newInvoice);
-      console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
-
-      // Update tenant balance in a transaction
-      const tenantRef = db.collection('tenants').doc(tenantId);
-
-      await db.runTransaction(async (transaction) => {
-        const tenantDoc = await transaction.get(tenantRef);
-
-        if (!tenantDoc.exists) {
-          console.warn(`Tenant ${tenantId} not found when updating balance`);
-          return;
+    {
+      schedule: '0 5 1 * *', // 5:00 AM on the 1st of every month
+      timeZone: 'America/Chicago',
+    },
+    async (event) => {
+      try {
+        const today = new Date();
+        const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
+        const invoiceYear = today.getFullYear();
+        const dateObject = new Date(invoiceYear, invoiceMonth, 1);
+        const dateOptions: {
+            year: "numeric" | "2-digit"; // Specify the allowed string literals
+            month: "numeric" | "2-digit" | "long" | "short" | "narrow"; // Example for month
+        } = {
+            year: "numeric",
+            month: "long"
+        };
+        const dateString = dateObject.toLocaleDateString('en-US', dateOptions);
+  
+        // Get all rented units
+        const unitsSnapshot = await db.collection('units')
+          .where('tenantId', '!=', null)
+          .get();
+  
+        let invoicesCreated = 0;
+  
+        for (const unitDoc of unitsSnapshot.docs) {
+          const unit = unitDoc.data();
+          const unitId = unitDoc.id;
+  
+          if (!unit.tenantId || !unit.startDate) continue;
+  
+          const startDate = unit.startDate.toDate
+            ? unit.startDate.toDate()
+            : new Date(unit.startDate);
+  
+          if (startDate > today) continue;
+  
+          const tenantId = unit.tenantId;
+          const rent = unit.rent;
+  
+          // Check if invoice already exists for this month
+          const invoiceQuery = await db.collection('invoices')
+            .where('tenantId', '==', tenantId)
+            .where('dueDate', '>=', new Date(invoiceYear, invoiceMonth, 1))
+            .where('dueDate', '<', new Date(invoiceYear, invoiceMonth + 1, 1))
+            .get();
+  
+          const alreadyExists = invoiceQuery.docs.some(
+            (doc) => doc.data().amount === rent
+          );
+          if (alreadyExists) continue;
+  
+          // Get next invoice number and create invoice in a transaction
+          const settingsRef = db.collection('settings').doc('main');
+          const tenantRef = db.collection('tenants').doc(tenantId);
+  
+          await db.runTransaction(async (transaction) => {
+            // READ PHASE: Get settings and tenant data
+            const settingsDoc = await transaction.get(settingsRef);
+            const tenantDoc = await transaction.get(tenantRef);
+  
+            if (!settingsDoc.exists) {
+              throw new Error('Settings document not found');
+            }
+  
+            const settingsData = settingsDoc.data();
+            const currentInvoiceNum = settingsData?.currentInvoiceNum ?? 100;
+            const nextInvoiceNum = currentInvoiceNum + 1;
+  
+            // WRITE PHASE: Create invoice, update settings, update tenant balance
+            const newInvoiceRef = db.collection('invoices').doc();
+            const newInvoice = {
+              tenantId,
+              invoiceNumber: nextInvoiceNum,
+              monthRange: dateString,
+              unitId,
+              amount: rent,
+              dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth + 1, 1)),
+              status: 'unpaid',
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              amountPaid: 0,
+              notes: "",
+            };
+  
+            transaction.set(newInvoiceRef, newInvoice);
+  
+            // Update settings with new invoice number
+            transaction.update(settingsRef, {
+              currentInvoiceNum: nextInvoiceNum,
+            });
+  
+            // Update tenant balance
+            if (tenantDoc.exists) {
+              const tenantData = tenantDoc.data();
+              const currentBalance = tenantData?.balance ?? 0;
+              transaction.update(tenantRef, {
+                balance: currentBalance + rent,
+              });
+            } else {
+              console.warn(`Tenant ${tenantId} not found when updating balance`);
+            }
+          });
+  
+          invoicesCreated++;
+          console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
+          console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
         }
-
-        const tenantData = tenantDoc.data();
-        const currentBalance = tenantData?.balance ?? 0;
-
-        transaction.update(tenantRef, {
-          balance: currentBalance + rent,
-        });
-      });
-
-      console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
+  
+        console.log(`Scheduled invoice generation completed: ${invoicesCreated} invoices created`);
+      } catch (error) {
+        console.error('Error in scheduled invoice generation:', error);
+        throw error;
+      }
     }
-
-    return;
-  }
-);
+  );
 
 //CURRENT GENERATE INVOICE SECTION
 export const generateMonthlyInvoicesNow = onCall(async (request) => {
@@ -180,6 +216,15 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
         const today = new Date();
         const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
         const invoiceYear = today.getFullYear();
+        const dateObject = new Date(invoiceYear, invoiceMonth, 1);
+        const dateOptions: {
+            year: "numeric" | "2-digit"; // Specify the allowed string literals
+            month: "numeric" | "2-digit" | "long" | "short" | "narrow"; // Example for month
+        } = {
+            year: "numeric",
+            month: "long"
+        };
+        const dateString = dateObject.toLocaleDateString('en-US', dateOptions);
 
         // Get all rented units
         const unitsSnapshot = await db.collection('units')
@@ -214,40 +259,60 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
                 (doc) => doc.data().amount === rent
             );
             if (alreadyExists) continue;
-
-            // Create invoice
-            const newInvoice = {
-                tenantId,
-                unitId,
-                amount: rent,
-                dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth, 1)),
-                status: 'unpaid',
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                amountPaid: 0,
-            };
-
-            await db.collection('invoices').add(newInvoice);
-            invoicesCreated++;
-            console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
-
-            // Update tenant balance in a transaction
+            
+            // Get next invoice number and create invoice in a transaction
+            const settingsRef = db.collection('settings').doc('main');
             const tenantRef = db.collection('tenants').doc(tenantId);
 
             await db.runTransaction(async (transaction) => {
+                // READ PHASE: Get settings and tenant data
+                const settingsDoc = await transaction.get(settingsRef);
                 const tenantDoc = await transaction.get(tenantRef);
 
-                if (!tenantDoc.exists) {
-                    console.warn(`Tenant ${tenantId} not found when updating balance`);
-                    return;
+                if (!settingsDoc.exists) {
+                    throw new Error('Settings document not found');
                 }
 
-                const tenantData = tenantDoc.data();
-                const currentBalance = tenantData?.balance ?? 0;
+                const settingsData = settingsDoc.data();
+                const currentInvoiceNum = settingsData?.currentInvoiceNum ?? 100;
+                const nextInvoiceNum = currentInvoiceNum + 1;
 
-                transaction.update(tenantRef, {
-                    balance: currentBalance + rent,
+                // WRITE PHASE: Create invoice, update settings, update tenant balance
+                const newInvoiceRef = db.collection('invoices').doc();
+                const newInvoice = {
+                    tenantId,
+                    invoiceNumber: nextInvoiceNum,
+                    monthRange: dateString,
+                    unitId,
+                    amount: rent,
+                    dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth + 1, 1)),
+                    status: 'unpaid',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    amountPaid: 0,
+                    notes: "",
+                };
+
+                transaction.set(newInvoiceRef, newInvoice);
+
+                // Update settings with new invoice number
+                transaction.update(settingsRef, {
+                    currentInvoiceNum: nextInvoiceNum,
                 });
+
+                // Update tenant balance
+                if (tenantDoc.exists) {
+                    const tenantData = tenantDoc.data();
+                    const currentBalance = tenantData?.balance ?? 0;
+                    transaction.update(tenantRef, {
+                        balance: currentBalance + rent,
+                    });
+                } else {
+                    console.warn(`Tenant ${tenantId} not found when updating balance`);
+                }
             });
+
+            invoicesCreated++;
+            console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
             console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
         }
 

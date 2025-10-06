@@ -271,13 +271,13 @@ export default function TenantsPage() {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                        id="name"
-                        placeholder="John Doe"
-                        value={newTenant.name}
-                        onChange={handleNewTenantInputChange}
-                    />
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                          id="name"
+                          placeholder="John Doe"
+                          value={newTenant.name}
+                          onChange={handleNewTenantInputChange}
+                      />
                     </div>
                     <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>

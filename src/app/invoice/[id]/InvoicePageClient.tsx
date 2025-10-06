@@ -3,19 +3,46 @@
 import { useState, useEffect } from 'react';
 import { PrintableInvoice } from '@/components/PrintableInvoice';
 import { getInvoices } from '@/services/invoices';
-import type { Invoice } from '@/types';
+import { getTenants } from '@/services/tenants';
+import { getUnits } from '@/services/units'; // Assuming you have this
+import type { Invoice, Tenant, Unit } from '@/types';
 
 export default function InvoicePageClient({ id }: { id: string }) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [unit, setUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadInvoice = async () => {
+    const loadInvoiceData = async () => {
       try {
         setIsLoading(true);
+        
+        // Get the invoice
         const invoices = await getInvoices();
         const foundInvoice = invoices.find(inv => inv.id === id);
-        setInvoice(foundInvoice || null);
+        
+        if (!foundInvoice) {
+          setInvoice(null);
+          return;
+        }
+        
+        setInvoice(foundInvoice);
+        
+        // Get related data
+        const [tenants, units] = await Promise.all([
+          getTenants(),
+          getUnits() // Or however you fetch units
+        ]);
+        
+        const foundTenant = tenants.find(t => t.id === foundInvoice.tenantId);
+        setTenant(foundTenant || null);
+        
+        if (foundInvoice.unitId) {
+          const foundUnit = units.find(u => u.id === foundInvoice.unitId);
+          setUnit(foundUnit || null);
+        }
+        
       } catch (error) {
         console.error("Failed to fetch invoice:", error);
       } finally {
@@ -23,7 +50,7 @@ export default function InvoicePageClient({ id }: { id: string }) {
       }
     };
     
-    loadInvoice();
+    loadInvoiceData();
   }, [id]);
 
   if (isLoading) {
@@ -34,5 +61,5 @@ export default function InvoicePageClient({ id }: { id: string }) {
     return <div className="p-8 text-center">Invoice not found</div>;
   }
 
-  return <PrintableInvoice invoice={invoice} />;
+  return <PrintableInvoice invoice={invoice} tenant={tenant} unit={unit} />;
 }
