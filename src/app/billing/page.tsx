@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -40,7 +39,18 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { CreateInvoiceDialog } from '@/components/CreateInvoiceDialog';
 
 export default function InvoicesPage() {
   const { toast } = useToast();
@@ -54,6 +64,12 @@ export default function InvoicesPage() {
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmDescription, setConfirmDescription] = useState('');
 
+  // Create Invoice dialog state and related needs
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  // Edit dialog state
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -114,9 +130,69 @@ export default function InvoicesPage() {
   const showConfirmationDialog = (title: string, description: string, onConfirm: () => void) => {
     setConfirmTitle(title);
     setConfirmDescription(description);
-    setConfirmAction(() => onConfirm); // Use a function to avoid issues with stale state
+    setConfirmAction(() => onConfirm);
     setIsConfirmOpen(true);
   }
+
+  const handleEditClick = (invoice: Invoice) => {
+    if (invoice.status === 'paid' || invoice.status === 'void') {
+      toast({
+        title: "Cannot Edit",
+        description: "Paid or voided invoices cannot be edited.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSelectedInvoice({ ...invoice });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditInvoiceInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { id, value } = e.target;
+    if (selectedInvoice) {
+      setSelectedInvoice(prev => prev ? ({ 
+        ...prev, 
+        [id.replace('edit-','')]: value 
+      }) : null);
+    }
+  };
+
+  const handleUpdateInvoice = async () => {
+    if (!selectedInvoice) return;
+    
+    // Validation
+    if (!selectedInvoice.dueDate) {
+      toast({
+        title: "Validation Error",
+        description: "Due date is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { id, ...invoiceData } = selectedInvoice;
+      const cleanedData = Object.fromEntries(
+        Object.entries(invoiceData).filter(([_, value]) => value !== undefined)
+      );
+      await updateInvoice(id, cleanedData);
+      await loadData();
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Invoice updated successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to update invoice:", error);
+      toast({
+        title: "Error",
+        description: "Could not update invoice.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleMarkAsPaid = async (invoice: Invoice) => {
     showConfirmationDialog(
@@ -127,8 +203,8 @@ export default function InvoicesPage() {
                 await recordPayment({
                     tenantId: invoice.tenantId,
                     amount: invoice.amount,
-                    paymentMethod: 'Other', // Or prompt for method
-                    status: 'complete', // Default status for new payments
+                    paymentMethod: 'Other',
+                    status: 'complete',
                     invoiceIds: [invoice.id]
                 });
                 toast({ title: "Success", description: "Payment recorded successfully." });
@@ -207,7 +283,7 @@ export default function InvoicesPage() {
                   </Button>
                 )}
             </div>
-            <Button>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Create Invoice
             </Button>
@@ -245,11 +321,9 @@ export default function InvoicesPage() {
             </TableRow>
           ) : (filteredInvoices
             .sort((a, b) => {
-              // First, sort by invoice number (descending - highest first)
               if (b.invoiceNumber !== a.invoiceNumber) {
                 return b.invoiceNumber - a.invoiceNumber;
               }
-              // If invoice numbers are equal, sort by createdAt (descending - most recent first)
               const aTime = a.createdAt?.getTime() ?? 0;
               const bTime = b.createdAt?.getTime() ?? 0;
               return bTime - aTime;
@@ -305,13 +379,18 @@ export default function InvoicesPage() {
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                            onClick={() => handleMarkAsPaid(invoice)}
+                            onSelect={() => handleEditClick(invoice)}
+                        >
+                          Edit Invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onSelect={() => handleMarkAsPaid(invoice)}
                             disabled={invoice.status !== 'unpaid'}
                         >
                           Mark as Paid
                         </DropdownMenuItem>
                          <DropdownMenuItem 
-                            onClick={() => handleVoidInvoice(invoice)}
+                            onSelect={() => handleVoidInvoice(invoice)}
                             disabled={invoice.status === 'void' || invoice.status === 'paid'}
                          >
                           Void Invoice
@@ -319,7 +398,7 @@ export default function InvoicesPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                             className="text-destructive"
-                            onClick={() => handleDeleteInvoice(invoice)}
+                            onSelect={() => handleDeleteInvoice(invoice)}
                         >
                           Delete
                         </DropdownMenuItem>
@@ -332,6 +411,92 @@ export default function InvoicesPage() {
         </Table>
       </div>
     </div>
+
+    {/* Edit Invoice Dialog */}
+    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Invoice</DialogTitle>
+          <DialogDescription>
+            Update the details for invoice #{selectedInvoice?.invoiceNumber}.
+          </DialogDescription>
+        </DialogHeader>
+        
+        {selectedInvoice && (
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <p>Invoice Number: {selectedInvoice.invoiceNumber}</p>
+            </div>
+
+            <div className="grid gap-2">
+              <p>Tenant: {tenantsById[selectedInvoice.tenantId]?.name || 'N/A'}</p>
+            </div>
+
+            <div className="grid gap-2">
+              <p>Amount: {selectedInvoice.amount}</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-monthRange">Month Range</Label>
+              <Input
+                id="edit-monthRange"
+                value={selectedInvoice.monthRange || 'N/A'}
+                disabled
+                className="bg-muted"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Input
+                id="edit-status"
+                value={selectedInvoice.status}
+                disabled
+                className="bg-muted capitalize"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-dueDate">Due Date</Label>
+              <Input
+                id="edit-dueDate"
+                type="date"
+                value={selectedInvoice.dueDate instanceof Date 
+                  ? selectedInvoice.dueDate.toISOString().split('T')[0]
+                  : ''}
+                onChange={(e) => setSelectedInvoice(prev => prev ? ({ 
+                  ...prev, 
+                  dueDate: new Date(e.target.value)
+                }) : null)}
+              />
+            </div>
+
+            {selectedInvoice.notes !== undefined && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-notes">Notes</Label>
+                <Textarea
+                  id="edit-notes"
+                  value={selectedInvoice.notes || ''}
+                  onChange={handleEditInvoiceInputChange}
+                  placeholder="Add notes about this invoice..."
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpdateInvoice}>
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Confirmation Dialog */}
     <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
@@ -353,6 +518,12 @@ export default function InvoicesPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+    
+    <CreateInvoiceDialog 
+      isOpen={isCreateDialogOpen} 
+      onOpenChange={setIsCreateDialogOpen}
+    />
+
     </>
   );
 }

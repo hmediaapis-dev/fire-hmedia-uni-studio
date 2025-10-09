@@ -37,7 +37,12 @@ const tenantConverter: FirestoreDataConverter<Tenant> = {
 export async function getTenants(): Promise<Tenant[]> {
   const tenantsCol = collection(db, 'tenants').withConverter(tenantConverter);
   const snapshot = await getDocs(tenantsCol);
-  return snapshot.docs.map((doc) => doc.data());
+  const tenants = snapshot.docs.map((doc) => doc.data());
+  
+  // Sort alphabetically by name
+  tenants.sort((a, b) => a.name.localeCompare(b.name));
+  
+  return tenants;
 }
 
 export async function addTenant(tenantData: Omit<Tenant, 'id' | 'joinDate' | 'units' | 'rent' | 'balance'>): Promise<string> {

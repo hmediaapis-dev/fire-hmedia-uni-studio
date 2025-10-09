@@ -25,6 +25,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Payment, Tenant } from '@/types';
 import { getPayments, deletePayment } from '@/services/payments';
 import { getTenants } from '@/services/tenants';
+import { CreatePaymentDialog } from '@/components/CreatePaymentDialog';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
 import { DateRangePicker } from '@/components/date-range-picker';
@@ -49,6 +50,7 @@ export default function PaymentsPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [isCreatePaymentDialogOpen, setIsCreatePaymentDialogOpen] = useState(false); // Add state for create dialog
 
   const loadData = useCallback(async () => {
     try {
@@ -162,7 +164,7 @@ export default function PaymentsPage() {
                   </Button>
                 )}
             </div>
-            <Button>
+            <Button onClick={() => setIsCreatePaymentDialogOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Manual Payment
             </Button>
@@ -281,6 +283,12 @@ export default function PaymentsPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    <CreatePaymentDialog 
+      isOpen={isCreatePaymentDialogOpen}
+      onOpenChange={setIsCreatePaymentDialogOpen}
+    />
+
     </>
   );
 }

@@ -11,6 +11,7 @@ export default function InvoicePageClient({ id }: { id: string }) {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [unit, setUnit] = useState<Unit | null>(null);
+  const [unitFallbackName, setUnitFallbackName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -37,10 +38,20 @@ export default function InvoicePageClient({ id }: { id: string }) {
         
         const foundTenant = tenants.find(t => t.id === foundInvoice.tenantId);
         setTenant(foundTenant || null);
-        
+
         if (foundInvoice.unitId) {
           const foundUnit = units.find(u => u.id === foundInvoice.unitId);
-          setUnit(foundUnit || null);
+          //console.log('Found unit:', foundUnit, 'for unitId:', foundInvoice.unitId);
+
+          if (foundUnit) {
+            // Use the actual unit from Firestore
+            setUnit(foundUnit);
+            setUnitFallbackName(null);
+          } else {
+            // Use the exact text as fallback
+            setUnit(null);
+            setUnitFallbackName(foundInvoice.unitId);
+          }
         }
         
       } catch (error) {
@@ -61,5 +72,10 @@ export default function InvoicePageClient({ id }: { id: string }) {
     return <div className="p-8 text-center">Invoice not found</div>;
   }
 
-  return <PrintableInvoice invoice={invoice} tenant={tenant} unit={unit} />;
+  return <PrintableInvoice 
+    invoice={invoice} 
+    tenant={tenant} 
+    unit={unit}
+    unitFallbackName={unitFallbackName}
+  />;
 }

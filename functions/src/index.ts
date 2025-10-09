@@ -326,6 +326,95 @@ export const generateMonthlyInvoicesNow = onCall(async (request) => {
     }
 });
 
+//INVOICE CRUD SECTION - CREATE
+export const createInvoice = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate required data
+    const data = request.data;
+    if (!data.tenantId || !data.monthRange || !data.amount || !data.dueDate) {
+        throw new HttpsError(
+            'invalid-argument', 
+            'The function must be called with "tenantId", "monthRange", "amount", and "dueDate" arguments.'
+        );
+    }
+
+    // Validate tenant exists
+    const tenantRef = db.collection('tenants').doc(data.tenantId);
+    const tenantDoc = await tenantRef.get();
+    if (!tenantDoc.exists) {
+        throw new HttpsError('not-found', 'Tenant not found.');
+    }
+
+    // Validate amount is positive
+    if (data.amount <= 0) {
+        throw new HttpsError('invalid-argument', 'Amount must be greater than 0.');
+    }
+
+    try {
+        const settingsRef = db.collection('settings').doc('main');
+        let invoiceId: string;
+        let invoiceNumber: number;
+
+        // Use transaction to get invoice number and create invoice atomically
+        await db.runTransaction(async (transaction) => {
+            // READ PHASE: Get current invoice number and tenant data
+            const settingsDoc = await transaction.get(settingsRef);
+            const settingsData = settingsDoc.data();
+            const currentInvoiceNum = settingsData?.currentInvoiceNum ?? 100;
+            const nextInvoiceNum = currentInvoiceNum + 1;
+
+            // Get tenant data within transaction for consistency
+            const tenantSnapshot = await transaction.get(tenantRef);
+            const tenantData = tenantSnapshot.data();
+            const currentBalance = tenantData?.balance ?? 0;
+
+            // Prepare invoice data
+            const newInvoice = {
+                invoiceNumber: nextInvoiceNum,
+                monthRange: data.monthRange,
+                tenantId: data.tenantId,
+                unitId: data.unitId || null,
+                amount: data.amount,
+                dueDate: admin.firestore.Timestamp.fromDate(new Date(data.dueDate)),
+                status: 'unpaid' as const,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                notes: data.notes || '',
+                // paidDate and amountPaid are not set initially
+            };
+
+            // WRITE PHASE: Create invoice, update settings, and update tenant balance
+            const invoiceRef = db.collection('invoices').doc();
+            transaction.set(invoiceRef, newInvoice);
+            transaction.update(settingsRef, {
+                currentInvoiceNum: nextInvoiceNum,
+            });
+            transaction.update(tenantRef, {
+                balance: currentBalance + data.amount,
+            });
+
+            // Store for return value
+            invoiceId = invoiceRef.id;
+            invoiceNumber = nextInvoiceNum;
+        });
+
+        return { 
+            id: invoiceId!, 
+            invoiceNumber: invoiceNumber!,
+            success: true 
+        };
+    } catch (error) {
+        console.error('Error creating invoice:', error);
+        throw new HttpsError('internal', 'Could not create invoice.');
+    }
+});
+
 //TENANT CRUD SECTION - CREATE
 export const addTenant = onCall(async (request) => {
     // Check auth
@@ -375,7 +464,14 @@ export const getTenants = onCall(async (request) => {
 
     try {
         const snapshot = await db.collection('tenants').get();
-        const tenants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const tenants = snapshot.docs.map(doc => ({ 
+            id: doc.id,
+            name: doc.data().name,
+             ...doc.data() }));
+
+        // Sort alphabetically by name
+        tenants.sort((a, b) => a.name.localeCompare(b.name));
+
         return tenants;
     } catch (error) {
         console.error('Error getting tenants:', error);
@@ -453,7 +549,7 @@ export const deleteTenant = onCall(async (request) => {
 });
 
 //PAYMENT CRUD SECTION - CREATE
-export const recordPayment = onCall(async (request) => {
+export const createPayment = onCall(async (request) => {
     // Auth checks
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');

@@ -4,9 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Printer, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import type { Invoice, Tenant, Unit } from '@/types';
-import { getInvoices, updateInvoice, deleteInvoice } from '@/services/invoices';
-import { getTenants } from '@/services/tenants';
-import { recordPayment } from '@/services/payments';
 
 
 const formatCurrency = (amount: number) => {
@@ -45,11 +42,13 @@ const getStatusBadge = (status: Invoice['status']) => {
 export function PrintableInvoice({ 
     invoice, 
     tenant, 
-    unit 
+    unit, 
+    unitFallbackName 
   }: { 
     invoice: Invoice;
     tenant: Tenant | null;
-    unit: Unit | null;
+    unit?: Unit | null;
+    unitFallbackName?: string | null;
   }) {
   const handlePrint = () => {
     window.print();
@@ -92,9 +91,7 @@ export function PrintableInvoice({
                 {tenant?.email && (
                   <p className="text-gray-600">{tenant.email}</p>
                 )}
-                {unit && (
-                  <p className="text-gray-600">Unit: {unit.name || unit.name || 'N/A'}</p>
-                )}
+                  {unit && (<p className="text-gray-600"> Unit: {(unit?.name  || 'N/A')}</p>)}<p className="text-gray-600">{unitFallbackName && (unitFallbackName || 'N/A')}</p>
               </div>
               <div>
                 <div className="space-y-2">
@@ -124,8 +121,8 @@ export function PrintableInvoice({
             <div className="border-t border-b border-gray-200 py-6 mb-8">
               <div className="space-y-4">
                 <div className="flex text-small">
-                  <span className="font-semibold text-gray-600">For&nbsp;{invoice && (invoice.monthRange || 'N/A')}&nbsp;Unit&nbsp;</span>
-                  <span className="font-semibold">{unit && (unit.name || unit.name || 'N/A')}</span>
+                  <span className="font-semibold text-gray-600">For&nbsp;{invoice && (invoice.monthRange || 'N/A')}&nbsp;{unit && (<span className="font-semibold text-gray-600">Unit&nbsp;</span>)}</span>
+                  <span className="font-semibold">{(unit?.name  || unitFallbackName || 'N/A')}</span>
                 </div>
                 <div className="flex text-xs">
                   <span className="text-gray-600">Notes:&nbsp;</span>

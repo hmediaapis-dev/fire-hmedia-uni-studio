@@ -14,25 +14,27 @@ import {
   deleteField,
   Timestamp,
 } from 'firebase/firestore';
+import { FirestoreDataConverter, 
+    QueryDocumentSnapshot,
+} from 'firebase/firestore';
 
-const unitConverter = {
-    toFirestore: (data: Omit<Unit, 'id'>) => {
-        const firestoreData: any = {...data};
-        if (data.startDate) {
-            firestoreData.startDate = Timestamp.fromDate(data.startDate);
-        }
-        return firestoreData;
+const unitConverter: FirestoreDataConverter<Unit> = {
+    toFirestore: (unit: Unit) => {
+        const { id, ...data } = unit;
+        return {
+            ...data,
+            startDate: data.startDate ? Timestamp.fromDate(data.startDate) : undefined,
+        };
     },
-    fromFirestore: (snapshot: any, options: any): Unit => {
-        const data = snapshot.data(options);
+    fromFirestore: (snapshot: QueryDocumentSnapshot): Unit => {
+        const data = snapshot.data();
         return {
             id: snapshot.id,
             ...data,
             startDate: data.startDate ? data.startDate.toDate() : undefined,
-        };
+        } as Unit;
     },
 };
-
 
 export async function getUnits(): Promise<Unit[]> {
   const unitsCol = collection(db, 'units').withConverter(unitConverter);
