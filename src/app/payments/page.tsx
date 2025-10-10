@@ -22,7 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { MoreHorizontal, PlusCircle, Search, Trash2, X } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Payment, Tenant } from '@/types';
+import type { Payment, Invoice, Tenant } from '@/types';
+import { getInvoices } from '@/services/invoices';
 import { getPayments, deletePayment } from '@/services/payments';
 import { getTenants } from '@/services/tenants';
 import { CreatePaymentDialog } from '@/components/CreatePaymentDialog';
@@ -45,6 +46,7 @@ export default function PaymentsPage() {
   const { toast } = useToast();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]); //added for invoice data
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -55,12 +57,14 @@ export default function PaymentsPage() {
   const loadData = useCallback(async () => {
     try {
         setIsLoading(true);
-        const [paymentsData, tenantsData] = await Promise.all([
+        const [paymentsData, tenantsData, invoicesData] = await Promise.all([
             getPayments(),
-            getTenants()
+            getTenants(),
+            getInvoices()
         ]);
         setPayments(paymentsData);
         setTenants(tenantsData);
+        setInvoices(invoicesData);
     } catch (error) {
         console.error("Failed to fetch payments data:", error);
         toast({
@@ -80,6 +84,11 @@ export default function PaymentsPage() {
   const tenantsById = useMemo(() => Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
   ), [tenants]);
+
+  const invoicesById = useMemo<Record<string, number>>(
+    () => Object.fromEntries(invoices.map(invoice => [invoice.id, invoice.invoiceNumber])),
+    [invoices]
+  );
 
   const filteredPayments = useMemo(() => {
     let filtered = payments;
@@ -182,7 +191,7 @@ export default function PaymentsPage() {
               <TableHead>Tenant</TableHead>
               <TableHead>Payment Date</TableHead>
               <TableHead>Method</TableHead>
-              <TableHead>Invoices</TableHead>
+              <TableHead>Invoice</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
@@ -225,7 +234,7 @@ export default function PaymentsPage() {
                   <TableCell>
                     <div className="flex flex-col">
                      {payment.invoiceIds.map(id => (
-                        <span key={id} className="font-mono text-xs">{id}</span>
+                        <span key={id} className="font-mono text-xs">{invoicesById[id] ?? id}</span>
                      ))}
                     </div>
                   </TableCell>

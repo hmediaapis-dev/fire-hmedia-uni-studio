@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const recentInvoices = invoices
     .sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime())
     .slice(0, 5);
+    
   const tenantsById = Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
   );

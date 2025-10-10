@@ -47,6 +47,7 @@ import { getUnits } from '@/services/units';
 import { getInvoices } from '@/services/invoices';
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { TenantReportSelector } from '@/components/TenantReportSelector';
 
 export default function TenantsPage() {
   const { toast } = useToast();
@@ -222,6 +223,14 @@ export default function TenantsPage() {
 
   const tenantUnits = viewingTenant ? units.filter(unit => viewingTenant.units.includes(unit.id)) : [];
   const tenantInvoices = viewingTenant ? invoices.filter(invoice => invoice.tenantId === viewingTenant.id).slice(0, 5) : [];
+
+  const topInvoices = useMemo(() => 
+    tenantInvoices
+      .slice()                                                // make a copy so we don’t mutate the original array
+      .sort((a, b) => b.invoiceNumber - a.invoiceNumber)      // descending order
+      .slice(0, 4),                                            // take top 4
+    [tenantInvoices]
+  );
 
   return (
     <>
@@ -408,6 +417,13 @@ export default function TenantsPage() {
             </TableBody>
           </Table>
         </div>
+        <div className="border-t border-gray-200">
+          <p className="text-sm text-gray-500 text-center">
+          </p>
+        </div>
+        <div className="mb-6 flex justify-center">
+          <TenantReportSelector tenants={tenants} />
+        </div>
       </div>
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -545,21 +561,21 @@ export default function TenantsPage() {
 
                         <div>
                             <h4 className="text-lg font-semibold mb-2">Recent Invoices</h4>
-                            {tenantInvoices.length > 0 ? (
+                            {topInvoices.length > 0 ? (
                             <div className="border rounded-lg">
                             <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Invoice ID</TableHead>
+                                            <TableHead>Invoice</TableHead>
                                             <TableHead>Due Date</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead className="text-right">Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {tenantInvoices.map(invoice => (
+                                        {topInvoices.map(invoice => (
                                             <TableRow key={invoice.id}>
-                                                <TableCell className="font-mono text-xs">{invoice.id}</TableCell>
+                                                <TableCell className="font-mono text-xs">{invoice.invoiceNumber}</TableCell>
                                                 <TableCell>{format(invoice.dueDate, 'LLL dd, yyyy')}</TableCell>
                                                 <TableCell><Badge variant={invoice.status === 'paid' ? 'secondary' : 'destructive'}  className={
                                                     invoice.status === 'paid'
