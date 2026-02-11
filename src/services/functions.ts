@@ -14,7 +14,7 @@ export const updateTenantFunction = httpsCallable<{ tenantId: string; tenantData
 export const getTenantsFunction = httpsCallable<void, any[]>(functions, 'getTenants');
 
 export const recordPaymentFunction = httpsCallable<Omit<Payment, 'id' | 'paymentDate'>, { success: boolean, message: string }>(functions, 'createPayment');
-export const deletePaymentFunction = httpsCallable<{ paymentId: string }, { success: boolean, message: string }>(functions, 'deletePayment');
+export const voidPaymentFunction = httpsCallable<{ paymentId: string }, { success: boolean, message: string }>(functions, 'voidPayment');
 
 // Admin functions
 export const setAdminClaim = httpsCallable<{ email: string }, { message: string }>(functions, 'setAdminClaim');

@@ -415,6 +415,111 @@ export const createInvoice = onCall(async (request) => {
     }
 });
 
+//INVOICE CRUD SECTION - READ BY TENANT
+export const getTenantInvoices = onCall(async (request) => {
+// Check auth
+if (!request.auth) {
+    throw new HttpsError(
+    'unauthenticated',
+    'The function must be called while authenticated.'
+    );
+}
+
+const {
+    tenantId,
+    startDate,
+    endDate,
+    limit = 10,
+    lastDocId = null,
+} = request.data;
+
+    // 🧱 Hard validation (no accidental full scans)
+    if (!tenantId) {
+    return {
+        invoices: [],
+        lastDocId: null,
+        hasMore: false,
+        count: 0,
+    };
+    }
+
+    if (!startDate || !endDate) {
+    return {
+        invoices: [],
+        lastDocId: null,
+        hasMore: false,
+        count: 0,
+    };
+    }
+
+    if (limit > 50) {
+    throw new HttpsError(
+        'invalid-argument',
+        'Limit may not exceed 50.'
+    );
+    }
+
+    let start: admin.firestore.Timestamp;
+    let end: admin.firestore.Timestamp;
+
+    try {
+    start = admin.firestore.Timestamp.fromDate(new Date(startDate));
+    end = admin.firestore.Timestamp.fromDate(new Date(endDate));
+    } catch {
+    throw new HttpsError(
+        'invalid-argument',
+        'Invalid date format.'
+    );
+    }
+
+    try {
+    let query: admin.firestore.Query = db
+        .collection('invoices')
+        .where('tenantId', '==', tenantId)
+        .where('dueDate', '>=', start)
+        .where('dueDate', '<=', end)
+        .orderBy('dueDate', 'desc')
+        .limit(limit + 1); // +1 to detect hasMore
+
+    // Pagination
+    if (lastDocId) {
+        const lastDocSnap = await db
+        .collection('invoices')
+        .doc(lastDocId)
+        .get();
+
+        if (lastDocSnap.exists) {
+        query = query.startAfter(lastDocSnap);
+        }
+    }
+
+    const snapshot = await query.get();
+
+    const docs = snapshot.docs.slice(0, limit);
+    const hasMore = snapshot.docs.length > limit;
+
+    const invoices = docs.map(doc => {
+        const data = doc.data();
+        return {
+        id: doc.id,
+        ...data,
+        dueDate: data.dueDate?.toDate?.() ?? null, // serialize for client
+        createdAt: data.createdAt?.toDate?.() ?? null,
+        };
+    });
+
+    return {
+        invoices,
+        lastDocId: docs.length ? docs[docs.length - 1].id : null,
+        hasMore,
+        count: invoices.length,
+    };
+    } catch (error) {
+    console.error('Error getting tenant invoices:', error);
+    throw new HttpsError('internal', 'Could not retrieve tenant invoices.');
+    }
+});
+
 //TENANT CRUD SECTION - CREATE
 export const addTenant = onCall(async (request) => {
     // Check auth
@@ -434,6 +539,7 @@ export const addTenant = onCall(async (request) => {
     try {
         const newTenant = {
             name: data.name,
+            nameLower: data.name.toLowerCase(),
             email: data.email,
             phone: data.phone || '',
             address: data.address || '',
@@ -476,6 +582,80 @@ export const getTenants = onCall(async (request) => {
     } catch (error) {
         console.error('Error getting tenants:', error);
         throw new HttpsError('internal', 'Could not retrieve tenants.');
+    }
+});
+
+//TENANT CRUD SECTION - READ BY TENANT
+export const searchTenantsPaginated = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const data = request.data;
+    const searchTerm = data.searchTerm?.trim();
+    const limit = data.limit || 20;
+    const lastDocId = data.lastDocId;
+
+    // Require search term
+    if (!searchTerm || searchTerm.length === 0) {
+        throw new HttpsError(
+            'invalid-argument', 
+            'Search term is required.'
+        );
+    }
+
+    // Validate limit
+    if (limit < 1 || limit > 50) {
+        throw new HttpsError(
+            'invalid-argument', 
+            'Limit must be between 1 and 50.'
+        );
+    }
+
+    try {
+        const tenantsRef = db.collection('tenants');
+        const searchTermLower = searchTerm.toLowerCase();
+        
+        // Build query with range for prefix matching
+        let query = tenantsRef
+            .where('nameLower', '>=', searchTermLower)
+            .where('nameLower', '<', searchTermLower + '\uf8ff')
+            .orderBy('nameLower')
+            .limit(limit + 1); // Fetch one extra to check if there are more
+
+        // If continuing from previous page, start after last document
+        if (lastDocId) {
+            const lastDoc = await tenantsRef.doc(lastDocId).get();
+            if (!lastDoc.exists) {
+                throw new HttpsError('not-found', 'Last document not found.');
+            }
+            query = query.startAfter(lastDoc);
+        }
+
+        const snapshot = await query.get();
+        const docs = snapshot.docs;
+        
+        // Check if there are more results
+        const hasMore = docs.length > limit;
+        const tenants = docs.slice(0, limit).map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        return {
+            tenants: tenants,
+            lastDocId: tenants.length > 0 ? tenants[tenants.length - 1].id : null,
+            hasMore: hasMore,
+            count: tenants.length
+        };
+    } catch (error) {
+        console.error('Error searching tenants:', error);
+        throw new HttpsError('internal', 'Could not search tenants.');
     }
 });
 
@@ -715,7 +895,7 @@ export const voidPayment = onCall(async (request) => {
             // === WRITE PHASE ===
 
             // 1. Update tenant balance (add back the voided payment amount)
-            await adjustTenantBalanceInTransaction(tenantRef, tenantDoc.data(), -amount, transaction);
+            await adjustTenantBalanceInTransaction(tenantRef, tenantDoc.data(), amount, transaction);
 
             // 2. Update invoices - revert payment allocations
             for (const invoiceDoc of invoiceDocs) {
@@ -762,7 +942,7 @@ export const voidPayment = onCall(async (request) => {
             transaction.update(paymentRef, {
                 status: 'void',
                 voidedDate: admin.firestore.FieldValue.serverTimestamp(),
-                voidedBy: /*request.auth.uid*/admin, // Track who voided the payment
+                voidedBy: /*request.auth.uid*/"admin", // Track who voided the payment
             });
         });
 

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/lib/firebase';
+import { getInvoices } from '@/services/invoices';
 import { getTenants } from '@/services/tenants';
 import type { Invoice, Tenant } from '@/types';
 import {
@@ -42,10 +43,12 @@ type NewInvoiceForm = {
 type CreateInvoiceDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  refetchInvoices: () => void;
+  onClose: () => void;
 };
 
 // Component
-export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialogProps) {
+export function CreateInvoiceDialog({ isOpen, onOpenChange, refetchInvoices, onClose }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -60,13 +63,13 @@ export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialo
     notes: '',
   });
 
-  console.log('CreateInvoiceDialog render - isOpen:', isOpen);
+  //console.log('CreateInvoiceDialog render - isOpen:', isOpen);
 
   // Fetch tenants when dialog opens
   useEffect(() => {
-    console.log('Dialog opened:', isOpen, 'Tenants length:', tenants.length);
+    //console.log('Dialog opened:', isOpen, 'Tenants length:', tenants.length);
     if (isOpen && tenants.length === 0) {
-      console.log('Fetching tenants...');
+      //console.log('Fetching tenants...');
       fetchTenants();
     }
   }, [isOpen, tenants.length]);
@@ -150,7 +153,8 @@ export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialo
       const tenantName = selectedTenant?.name || 'Unknown Tenant';
       
       // Success! Close dialog and reset form
-      setIsCreateDialogOpen(false);
+      // setIsCreateDialogOpen(false);
+      onOpenChange(false);
       resetForm();
       
       // Show success toast
@@ -160,7 +164,8 @@ export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialo
       });
       
       // Optional: Refresh invoice list
-      // refetchInvoices();
+      refetchInvoices();
+      onClose();
     } catch (error: any) {
       console.error('Error creating invoice:', error);
       alert(error.message || 'Failed to create invoice. Please try again.');
@@ -169,10 +174,16 @@ export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialo
     }
   };
 
+  const handleClose = () => {
+    onClose(); // Call the parent's function
+    // Any other close logic
+    onOpenChange(false);
+  };
+
   return (
     <>
       {/* Create Invoice Dialog */}
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create New Invoice</DialogTitle>
@@ -280,7 +291,7 @@ export function CreateInvoiceDialog({ isOpen, onOpenChange }: CreateInvoiceDialo
             <Button 
               variant="outline" 
               onClick={() => {
-                setIsCreateDialogOpen(false);
+                onOpenChange(false);
                 resetForm();
               }}
               disabled={isSubmitting}

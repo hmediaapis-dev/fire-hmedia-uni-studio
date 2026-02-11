@@ -96,6 +96,12 @@ export default function InvoicesPage() {
     loadData();
   }, [loadData]);
 
+  const handleCreateInvoiceDialogClose = () => {
+    // console.log('Dialog closed!');
+    // Your logic here
+    // loadData();
+  };
+
   const tenantsById = useMemo(() => Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
   ), [tenants]);
@@ -522,6 +528,8 @@ export default function InvoicesPage() {
     <CreateInvoiceDialog 
       isOpen={isCreateDialogOpen} 
       onOpenChange={setIsCreateDialogOpen}
+      refetchInvoices={loadData}
+      onClose={handleCreateInvoiceDialogClose}
     />
 
     </>

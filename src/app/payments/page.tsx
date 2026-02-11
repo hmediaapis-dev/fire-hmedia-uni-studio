@@ -81,6 +81,12 @@ export default function PaymentsPage() {
     loadData();
   }, [loadData]);
 
+  const handleCreatePaymentDialogClose = () => {
+    //console.log('Dialog closed!');
+    // Your logic here
+    // loadData();
+  };
+
   const tenantsById = useMemo(() => Object.fromEntries(
     tenants.map((tenant) => [tenant.id, tenant])
   ), [tenants]);
@@ -129,7 +135,7 @@ export default function PaymentsPage() {
 
     try {
       await deletePayment(paymentToDelete.id);
-      toast({ title: "Success", description: "Payment deleted successfully. Tenant balance and invoices have been reverted." });
+      toast({ title: "Success", description: "Payment voided successfully. Tenant balance and invoices have been reverted." });
       await loadData(); // Refresh data
     } catch (error: any) {
       console.error("Failed to delete payment:", error);
@@ -296,6 +302,8 @@ export default function PaymentsPage() {
     <CreatePaymentDialog 
       isOpen={isCreatePaymentDialogOpen}
       onOpenChange={setIsCreatePaymentDialogOpen}
+      refetchPayments={loadData}
+      onClose={handleCreatePaymentDialogClose}
     />
 
     </>

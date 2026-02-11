@@ -48,6 +48,7 @@ import { getInvoices } from '@/services/invoices';
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TenantReportSelector } from '@/components/TenantReportSelector';
+import { TenantSearchList } from '@/components/TenantSearchList';
 
 export default function TenantsPage() {
   const { toast } = useToast();
@@ -66,6 +67,7 @@ export default function TenantsPage() {
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   const [newTenant, setNewTenant] = useState({
     name: '',
+    nameLower: '',
     email: '',
     phone: '',
     address: '',
@@ -161,7 +163,7 @@ export default function TenantsPage() {
       };
       const tenantId = await addTenant(newTenantData);
       setTenants((prev) => [...prev, { id: tenantId, ...newTenantData }]);
-      setNewTenant({ name: '', email: '', phone: '', address: '', notes: '' });
+      setNewTenant({ name: '', nameLower: '', email: '', phone: '', address: '', notes: '' });
       setIsAddDialogOpen(false);
       toast({
         title: "Success",
@@ -420,6 +422,10 @@ export default function TenantsPage() {
         <div className="border-t border-gray-200">
           <p className="text-sm text-gray-500 text-center">
           </p>
+        </div>
+        <div className="mt-6">
+          {/* Search + Pagination */}
+          <TenantSearchList />
         </div>
         <div className="mb-6 flex justify-center">
           <TenantReportSelector tenants={tenants} />

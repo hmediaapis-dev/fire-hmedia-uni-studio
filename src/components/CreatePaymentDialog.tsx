@@ -52,9 +52,11 @@ type NewPaymentForm = {
 type CreatePaymentDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  refetchPayments: () => void;
+  onClose: () => void;
 };
 
-export function CreatePaymentDialog({ isOpen, onOpenChange }: CreatePaymentDialogProps) {
+export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onClose }: CreatePaymentDialogProps) {
   const { toast } = useToast();
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
@@ -239,7 +241,8 @@ export function CreatePaymentDialog({ isOpen, onOpenChange }: CreatePaymentDialo
         });
         
         // Optional: Refresh payment list
-        // refetchPayments();
+        refetchPayments();
+        onClose();
       } else {
         throw new Error(result.message || 'Failed to record payment');
       }
@@ -260,8 +263,14 @@ export function CreatePaymentDialog({ isOpen, onOpenChange }: CreatePaymentDialo
     return `#${invoice.invoiceNumber} - ${invoice.monthRange} ($${remaining.toFixed(2)} remaining)`;
   };
 
+  const handleClose = () => {
+    onClose(); // Call the parent's function
+    // Any other close logic
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Record New Payment</DialogTitle>

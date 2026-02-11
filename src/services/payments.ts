@@ -1,5 +1,5 @@
 
-import { recordPaymentFunction, deletePaymentFunction } from './functions';
+import { recordPaymentFunction, voidPaymentFunction } from './functions';
 import type { Payment } from '@/types';
 import { db } from '@/lib/firebase';
 import { 
@@ -48,6 +48,6 @@ export async function recordPayment(paymentData: RecordPaymentData): Promise<{ s
 }
 
 export async function deletePayment(paymentId: string): Promise<{ success: boolean; message: string }> {
-    const result = await deletePaymentFunction({ paymentId });
+    const result = await voidPaymentFunction({ paymentId });
     return result.data;
 }
