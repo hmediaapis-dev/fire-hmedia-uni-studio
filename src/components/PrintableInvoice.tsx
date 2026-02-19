@@ -1,8 +1,9 @@
 import { useRef } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Printer, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { ArrowRight, Printer, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import type { Invoice, Tenant, Unit } from '@/types';
 
 
@@ -24,9 +25,9 @@ const formatDate = (date: Date) => {
 const getStatusBadge = (status: Invoice['status']) => {
   const config = {
     paid: { icon: CheckCircle, label: 'Paid', className: 'bg-green-100 text-green-800' },
-    unpaid: { icon: Clock, label: 'Unpaid', className: 'bg-yellow-100 text-yellow-800' },
-    void: { icon: XCircle, label: 'Void', className: 'bg-gray-100 text-gray-800' },
-    'partially-paid': { icon: AlertCircle, label: 'Partially Paid', className: 'bg-blue-100 text-blue-800' },
+    unpaid: { icon: Clock, label: 'Unpaid', className: 'bg-red-100 text-red-800' },
+    void: { icon: XCircle, label: 'Void', className: 'bg-yellow-100 text-yellow-800' },
+    'partially-paid': { icon: AlertCircle, label: 'Partially Paid', className: 'bg-gray-100 text-gray-800' },
   };
 
   const { icon: Icon, label, className } = config[status];
@@ -66,6 +67,12 @@ export function PrintableInvoice({
           <Printer className="w-4 h-4" />
           Print Invoice
         </Button>
+        <Link href={`/invoices/${invoice.id}/payments`}>
+          <Button  className="bg-gray-300 hover:bg-gray-400 text-gray-800 ml-4 mb-4">
+            <ArrowRight className="mr-2 h-4 w-4" />
+            View Payments
+          </Button>
+        </Link>
         
         <Card className="print:shadow-none print:border-0">
           <CardContent className="p-12">

@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { MoreHorizontal, PlusCircle, User, Warehouse, DollarSign, FileText, Home, Search, X } from 'lucide-react';
+import { PlusCircle, User, Warehouse, DollarSign, FileText } from 'lucide-react';
 import {
   Dialog,
   DialogContent,

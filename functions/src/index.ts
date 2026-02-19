@@ -842,6 +842,58 @@ export const createPayment = onCall(async (request) => {
     }
 });
 
+// PAYMENT CRUD SECTION - READ PAYMENTS BY INVOICE ID
+export const getInvoicePaymentsByInvoiceId = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const data = request.data;
+    const invoiceId = data.invoiceId?.trim();
+
+    // Require invoice ID
+    if (!invoiceId || invoiceId.length === 0) {
+        throw new HttpsError(
+            'invalid-argument',
+            'Invoice ID is required.'
+        );
+    }
+
+    try {
+        // Query payments where the invoiceIds array contains this invoice ID
+        const paymentsSnapshot = await db.collection('payments')
+            .where('invoiceIds', 'array-contains', invoiceId)
+            .orderBy('paymentDate', 'desc')
+            .get();
+
+        // Map payments with converted timestamps
+        const payments = paymentsSnapshot.docs.map(doc => {
+            const paymentData = doc.data();
+            
+            return {
+                id: doc.id,
+                ...paymentData,
+                // Convert Firestore Timestamps to ISO strings for JSON serialization
+                paymentDate: paymentData.paymentDate?.toDate?.().toISOString() || null,
+                voidedDate: paymentData.voidedDate?.toDate?.().toISOString() || null,
+            };
+        });
+
+        return {
+            payments: payments,
+            count: payments.length
+        };
+    } catch (error) {
+        console.error('Error fetching invoice payments:', error);
+        throw new HttpsError('internal', 'Could not fetch payments for invoice.');
+    }
+});
+
 // PAYMENT CRUD SECTION - VOID(DELETE)
 export const voidPayment = onCall(async (request) => {
     if (!request.auth) {
@@ -955,6 +1007,129 @@ export const voidPayment = onCall(async (request) => {
     }
 });
 
+//INVOICE CRUD SECTION - READ BY INVOICE NUMBER PAGINATED
+export const searchInvoicesPaginated = onCall(async (request) => {
+    // Check auth
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    if (request.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'The function must be called by an admin.');
+    }
+
+    // Validate data
+    const data = request.data;
+    const searchTerm = data.searchTerm?.trim();
+    const limit = data.limit || 20;
+    const lastDocId = data.lastDocId;
+
+    // Require search term
+    if (!searchTerm || searchTerm.length === 0) {
+        throw new HttpsError(
+            'invalid-argument',
+            'Search term is required.'
+        );
+    }
+
+    // Validate limit
+    if (limit < 1 || limit > 50) {
+        throw new HttpsError(
+            'invalid-argument',
+            'Limit must be between 1 and 50.'
+        );
+    }
+
+    try {
+        const invoicesRef = db.collection('invoices');
+        
+        // Convert search term to number for invoice number search
+        const invoiceNumber = parseInt(searchTerm, 10);
+        
+        // If it's not a valid number, return empty results
+        if (isNaN(invoiceNumber)) {
+            return {
+                invoices: [],
+                lastDocId: null,
+                hasMore: false,
+                count: 0
+            };
+        }
+
+        // Build query to search by invoice number (exact match or prefix)
+        // Using >= and < for range query to match invoice numbers starting with the search term
+        let query = invoicesRef
+            .where('invoiceNumber', '>=', invoiceNumber)
+            .where('invoiceNumber', '<', invoiceNumber + Math.pow(10, Math.max(0, String(invoiceNumber).length - String(Math.floor(invoiceNumber)).length)))
+            .orderBy('invoiceNumber', 'desc')
+            .limit(limit + 1); // Fetch one extra to check if there are more
+
+        // If continuing from previous page, start after last document
+        if (lastDocId) {
+            const lastDoc = await invoicesRef.doc(lastDocId).get();
+            if (!lastDoc.exists) {
+                throw new HttpsError('not-found', 'Last document not found.');
+            }
+            query = query.startAfter(lastDoc);
+        }
+
+        const snapshot = await query.get();
+        const docs = snapshot.docs;
+        
+        // Check if there are more results
+        const hasMore = docs.length > limit;
+        const invoiceDocs = docs.slice(0, limit);
+
+        // Get unique tenant IDs
+        const tenantIds = [...new Set(invoiceDocs.map(doc => doc.data().tenantId).filter(Boolean))];
+        
+        // Fetch tenant data in batch
+        const tenantMap = new Map();
+        if (tenantIds.length > 0) {
+            // Firestore 'in' query supports max 30 items, so we batch if needed
+            const batchSize = 30;
+            for (let i = 0; i < tenantIds.length; i += batchSize) {
+                const batch = tenantIds.slice(i, i + batchSize);
+                const tenantsSnapshot = await db.collection('tenants')
+                    .where(admin.firestore.FieldPath.documentId(), 'in', batch)
+                    .get();
+                
+                tenantsSnapshot.docs.forEach(doc => {
+                    tenantMap.set(doc.id, {
+                        name: doc.data().name,
+                        email: doc.data().email
+                    });
+                });
+            }
+        }
+
+        // Map invoices with tenant data
+        const invoices = invoiceDocs.map(doc => {
+            const invoiceData = doc.data();
+            const tenant = tenantMap.get(invoiceData.tenantId);
+            
+            return {
+                id: doc.id,
+                ...invoiceData,
+                tenantName: tenant?.name,
+                tenantEmail: tenant?.email,
+                // Convert Firestore Timestamps to ISO strings for JSON serialization
+                dueDate: invoiceData.dueDate?.toDate?.().toISOString() || null,
+                paidDate: invoiceData.paidDate?.toDate?.().toISOString() || null,
+                createdAt: invoiceData.createdAt?.toDate?.().toISOString() || null,
+            };
+        });
+
+        return {
+            invoices: invoices,
+            lastDocId: invoices.length > 0 ? invoices[invoices.length - 1].id : null,
+            hasMore: hasMore,
+            count: invoices.length
+        };
+    } catch (error) {
+        console.error('Error searching invoices:', error);
+        throw new HttpsError('internal', 'Could not search invoices.');
+    }
+});
 
 //INVOICE CRUD SECTION - DELETE
 export const deleteInvoice = onCall(async (request) => {

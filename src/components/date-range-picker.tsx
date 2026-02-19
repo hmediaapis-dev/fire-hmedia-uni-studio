@@ -22,8 +22,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
-    onSelect: (range: DateRange | undefined) => void;
+interface DateRangePickerProps {
+  className?: string;
+  onSelect: (range: DateRange | undefined) => void;
 }
 
 export function DateRangePicker({ className, onSelect }: DateRangePickerProps) {

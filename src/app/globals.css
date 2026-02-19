@@ -83,3 +83,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+.p-SpcaeBelow{
+  margin: 10px 0px 20px 0px;
+}
