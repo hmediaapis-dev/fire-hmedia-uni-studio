@@ -7,6 +7,7 @@
   packages = [
     pkgs.nodejs_20
     pkgs.zulu
+    pkgs.git-filter-repo
   ];
   # Sets environment variables in the workspace
   env = {};
