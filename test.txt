@@ -1,1 +1,2 @@
 Testing commit
+Testing new line
