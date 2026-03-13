@@ -70,7 +70,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl">H Media Unitrack</CardTitle>
           <CardDescription>
-            Sign in to your account to continue.
+            Sign in to your account to continue. Thank You.
           </CardDescription>
         </CardHeader>
         <CardContent>
