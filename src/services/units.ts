@@ -22,15 +22,25 @@ const unitConverter: FirestoreDataConverter<Unit> = {
     toFirestore: (unit: Unit) => {
         const { id, ...data } = unit;
         return {
-            ...data,
-            startDate: data.startDate ? Timestamp.fromDate(data.startDate) : undefined,
+            name: data.name,
+            size: data.size,
+            rent: data.rent,
+            status: data.status,
+            gateCode: data.gateCode,
+            tenantId: data.tenantId ?? null,
+            startDate: data.startDate ? Timestamp.fromDate(data.startDate) : null,
         };
     },
     fromFirestore: (snapshot: QueryDocumentSnapshot): Unit => {
         const data = snapshot.data();
         return {
             id: snapshot.id,
-            ...data,
+            name: data.name,
+            size: data.size,
+            rent: data.rent,
+            status: data.status,
+            gateCode: data.gateCode,
+            tenantId: data.tenantId ?? undefined,
             startDate: data.startDate ? data.startDate.toDate() : undefined,
         } as Unit;
     },

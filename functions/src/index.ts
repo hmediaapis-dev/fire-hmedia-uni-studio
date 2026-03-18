@@ -29,7 +29,7 @@ import {setGlobalOptions} from "firebase-functions/v2";
 setGlobalOptions({ maxInstances: 10 });
 
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { onSchedule } from "firebase-functions/v2/scheduler";
+// import { onSchedule } from "firebase-functions/v2/scheduler";  //add back when its time to invoice
 import * as admin from "firebase-admin";
 import { Payment } from '../src/utils/types';  //this is for the payment type in the payment CRUD functions
 
@@ -83,28 +83,26 @@ export const setAdminClaim = onCall(async (request) => {
 });
 
 //CURRENT GENERATE INVOICE SECTION
-export const generateMonthlyInvoices = onSchedule(
+/* export const generateMonthlyInvoices = onSchedule(
     {
       schedule: '0 5 1 * *', // 5:00 AM on the 1st of every month
       timeZone: 'America/Chicago',
     },
-    async (event) => {
+    async () => {
       try {
         const today = new Date();
-        const invoiceMonth = today.getMonth(); // 0-indexed (Jan = 0)
+        const invoiceMonth = today.getMonth(); // 0-indexed
         const invoiceYear = today.getFullYear();
+  
         const dateObject = new Date(invoiceYear, invoiceMonth, 1);
-        const dateOptions: {
-            year: "numeric" | "2-digit"; // Specify the allowed string literals
-            month: "numeric" | "2-digit" | "long" | "short" | "narrow"; // Example for month
-        } = {
-            year: "numeric",
-            month: "long"
-        };
-        const dateString = dateObject.toLocaleDateString('en-US', dateOptions);
+        const dateString = dateObject.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+        });
   
         // Get all rented units
-        const unitsSnapshot = await db.collection('units')
+        const unitsSnapshot = await db
+          .collection('units')
           .where('tenantId', '!=', null)
           .get();
   
@@ -123,26 +121,23 @@ export const generateMonthlyInvoices = onSchedule(
           if (startDate > today) continue;
   
           const tenantId = unit.tenantId;
-          const rent = unit.rent;
+          const rent = unit.rent ?? 0;
   
-          // Check if invoice already exists for this month
-          const invoiceQuery = await db.collection('invoices')
-            .where('tenantId', '==', tenantId)
-            .where('dueDate', '>=', new Date(invoiceYear, invoiceMonth, 1))
-            .where('dueDate', '<', new Date(invoiceYear, invoiceMonth + 1, 1))
-            .get();
+          // 🔒 Deterministic invoice ID (prevents duplicates)
+          const invoiceId = `${tenantId}_${unitId}_${invoiceYear}_${invoiceMonth}`;
+          const invoiceRef = db.collection('invoices').doc(invoiceId);
   
-          const alreadyExists = invoiceQuery.docs.some(
-            (doc) => doc.data().amount === rent
-          );
-          if (alreadyExists) continue;
-  
-          // Get next invoice number and create invoice in a transaction
           const settingsRef = db.collection('settings').doc('main');
           const tenantRef = db.collection('tenants').doc(tenantId);
   
           await db.runTransaction(async (transaction) => {
-            // READ PHASE: Get settings and tenant data
+            // 🚫 Check if invoice already exists
+            const existingInvoice = await transaction.get(invoiceRef);
+            if (existingInvoice.exists) {
+              return; // Skip if already created
+            }
+  
+            // Read required docs
             const settingsDoc = await transaction.get(settingsRef);
             const tenantDoc = await transaction.get(tenantRef);
   
@@ -154,52 +149,56 @@ export const generateMonthlyInvoices = onSchedule(
             const currentInvoiceNum = settingsData?.currentInvoiceNum ?? 100;
             const nextInvoiceNum = currentInvoiceNum + 1;
   
-            // WRITE PHASE: Create invoice, update settings, update tenant balance
-            const newInvoiceRef = db.collection('invoices').doc();
+            // Create invoice object
             const newInvoice = {
               tenantId,
+              unitId,
               invoiceNumber: nextInvoiceNum,
               monthRange: dateString,
-              unitId,
               amount: rent,
-              dueDate: admin.firestore.Timestamp.fromDate(new Date(invoiceYear, invoiceMonth + 1, 1)),
+              dueDate: admin.firestore.Timestamp.fromDate(
+                new Date(invoiceYear, invoiceMonth + 1, 1)
+              ),
               status: 'unpaid',
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               amountPaid: 0,
-              notes: "",
+              notes: '',
             };
   
-            transaction.set(newInvoiceRef, newInvoice);
+            // ✅ Create invoice
+            transaction.set(invoiceRef, newInvoice);
   
-            // Update settings with new invoice number
+            // ✅ Update invoice number
             transaction.update(settingsRef, {
               currentInvoiceNum: nextInvoiceNum,
             });
   
-            // Update tenant balance
+            // ✅ Update tenant balance
             if (tenantDoc.exists) {
               const tenantData = tenantDoc.data();
               const currentBalance = tenantData?.balance ?? 0;
+  
               transaction.update(tenantRef, {
                 balance: currentBalance + rent,
               });
-            } else {
-              console.warn(`Tenant ${tenantId} not found when updating balance`);
             }
           });
   
           invoicesCreated++;
-          console.log(`Invoice created for tenant ${tenantId} and unit ${unitId}`);
-          console.log(`Balance updated for tenant ${tenantId} by $${rent.toFixed(2)}`);
+          console.log(
+            `Processed invoice for tenant ${tenantId}, unit ${unitId}`
+          );
         }
   
-        console.log(`Scheduled invoice generation completed: ${invoicesCreated} invoices created`);
+        console.log(
+          `Monthly invoice generation completed: ${invoicesCreated} processed`
+        );
       } catch (error) {
         console.error('Error in scheduled invoice generation:', error);
         throw error;
       }
     }
-  );
+  );   */
 
 //CURRENT GENERATE INVOICE SECTION
 export const generateMonthlyInvoicesNow = onCall(async (request) => {
