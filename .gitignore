@@ -48,4 +48,5 @@ firestore-debug.log
 
 #service accounts and json
 serviceAccountKey.json
+uploadTenants.js
 *.json

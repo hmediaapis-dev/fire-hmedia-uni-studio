@@ -81,10 +81,10 @@ export default function TenantsPage() {
   };
 
   const handleAddTenant = async () => {
-    if (!newTenant.name || !newTenant.email) {
+    if (!newTenant.name || !newTenant.phone) {
       toast({
         title: "Validation Error",
-        description: "Name and Email are required.",
+        description: "Name and Phone are required.",
         variant: "destructive",
       });
       return;
