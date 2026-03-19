@@ -1,10 +1,8 @@
-
 'use client';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -32,23 +30,15 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit, updateUnit, deleteUnit } from '@/services/units';
-import { getTenants } from '@/services/tenants';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
+import { TenantSearchPicker } from '@/components/TenantSearchPicker';
 
 
 export default function UnitsPage() {
   const { toast } = useToast();
   const [units, setUnits] = useState<Unit[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dialog states
@@ -57,37 +47,36 @@ export default function UnitsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUnassignDialogOpen, setIsUnassignDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  
+
   // Data states
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [unitToEdit, setUnitToEdit] = useState<Unit | null>(null);
   const [unitToUnassign, setUnitToUnassign] = useState<Unit | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
-  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
+
+  // Selected tenant from the search picker
+  const [selectedTenant, setSelectedTenant] = useState<Pick<Tenant, 'id' | 'name'> | null>(null);
+
   const [newUnit, setNewUnit] = useState({
-      name: '',
-      size: '',
-      rent: 0,
-      gateCode: '',
+    name: '',
+    size: '',
+    rent: 0,
+    gateCode: '',
   });
 
-  const loadData = async () => {
+  const loadUnits = async () => {
     try {
       setIsLoading(true);
-      const [unitsData, tenantsData] = await Promise.all([
-        getUnits(),
-        getTenants(),
-      ]);
+      const unitsData = await getUnits();
       const sortedUnits = unitsData.sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
       );
       setUnits(sortedUnits);
-      setTenants(tenantsData);
     } catch (error) {
-      console.error("Failed to fetch data:", error);
-        toast({
+      console.error("Failed to fetch units:", error);
+      toast({
         title: "Error",
-        description: "Failed to load data from the database.",
+        description: "Failed to load units from the database.",
         variant: "destructive",
       });
     } finally {
@@ -96,29 +85,25 @@ export default function UnitsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    loadUnits();
   }, []);
-  
-  const tenantsById = Object.fromEntries(
-    tenants.map((tenant) => [tenant.id, tenant])
-  );
 
   const handleAssignTenantClick = (unit: Unit) => {
     setSelectedUnit(unit);
-    setSelectedTenantId('');
+    setSelectedTenant(null);
     setIsAssignDialogOpen(true);
   };
-  
+
   const handleEditClick = (unit: Unit) => {
-    setUnitToEdit({ ...unit }); // Create a copy to edit
+    setUnitToEdit({ ...unit });
     setIsEditDialogOpen(true);
   };
-  
+
   const handleUnassignClick = (unit: Unit) => {
     setUnitToUnassign(unit);
     setIsUnassignDialogOpen(true);
   };
-  
+
   const handleDeleteClick = (unit: Unit) => {
     setUnitToDelete(unit);
     setIsDeleteDialogOpen(true);
@@ -126,42 +111,28 @@ export default function UnitsPage() {
 
   const handleConfirmUnassign = async () => {
     if (!unitToUnassign || !unitToUnassign.tenantId) return;
-      try {
-          await unassignTenantFromUnit(unitToUnassign.id, unitToUnassign.tenantId);
-          await loadData(); // Refresh all data
-          toast({
-              title: "Success",
-              description: "Tenant unassigned successfully.",
-          });
-      } catch (error) {
-          console.error("Failed to unassign tenant:", error);
-          toast({
-              title: "Error",
-              description: "Could not unassign tenant.",
-              variant: "destructive",
-          });
-      } finally {
-        setIsUnassignDialogOpen(false);
-        setUnitToUnassign(null);
-      }
+    try {
+      await unassignTenantFromUnit(unitToUnassign.id, unitToUnassign.tenantId);
+      await loadUnits();
+      toast({ title: "Success", description: "Tenant unassigned successfully." });
+    } catch (error) {
+      console.error("Failed to unassign tenant:", error);
+      toast({ title: "Error", description: "Could not unassign tenant.", variant: "destructive" });
+    } finally {
+      setIsUnassignDialogOpen(false);
+      setUnitToUnassign(null);
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!unitToDelete) return;
     try {
       await deleteUnit(unitToDelete.id, unitToDelete.tenantId);
-      await loadData();
-      toast({
-        title: "Success",
-        description: `Unit "${unitToDelete.name}" deleted successfully.`,
-      });
+      await loadUnits();
+      toast({ title: "Success", description: `Unit "${unitToDelete.name}" deleted successfully.` });
     } catch (error) {
       console.error("Failed to delete unit:", error);
-      toast({
-        title: "Error",
-        description: "Could not delete the unit.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Could not delete the unit.", variant: "destructive" });
     } finally {
       setIsDeleteDialogOpen(false);
       setUnitToDelete(null);
@@ -169,115 +140,82 @@ export default function UnitsPage() {
   };
 
   const handleAssignTenant = async () => {
-    if (!selectedUnit || !selectedTenantId) return;
-
+    if (!selectedUnit || !selectedTenant) return;
     try {
       const oldTenantId = selectedUnit.tenantId;
-      await assignTenantToUnit(selectedUnit.id, selectedTenantId, oldTenantId);
-      await loadData(); // Refresh all data
-      
+      await assignTenantToUnit(selectedUnit.id, selectedTenant.id, selectedTenant.name, oldTenantId);
+      await loadUnits();
       setIsAssignDialogOpen(false);
       setSelectedUnit(null);
-      toast({
-        title: "Success",
-        description: "Tenant assigned successfully.",
-      });
+      setSelectedTenant(null);
+      toast({ title: "Success", description: "Tenant assigned successfully." });
     } catch (error) {
       console.error("Failed to assign tenant:", error);
-      toast({
-        title: "Error",
-        description: "Could not assign tenant.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Could not assign tenant.", variant: "destructive" });
     }
   };
-  
+
   const handleNewUnitInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
-    setNewUnit(prev => ({...prev, [id]: id === 'rent' ? parseFloat(value) || 0 : value}));
+    setNewUnit(prev => ({ ...prev, [id]: id === 'rent' ? parseFloat(value) || 0 : value }));
   };
 
   const handleEditUnitInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!unitToEdit) return;
     const { id, value } = e.target;
-    const fieldName = id.replace('edit-', ''); // remove 'edit-' prefix
+    const fieldName = id.replace('edit-', '');
     setUnitToEdit(prev => ({ ...prev!, [fieldName]: fieldName === 'rent' ? parseFloat(value) || 0 : value }));
   };
 
   const handleAddUnit = async () => {
     if (!newUnit.name || !newUnit.size || newUnit.rent <= 0) {
-        toast({
-            title: "Validation Error",
-            description: "Unit Name, Size, and a valid Rent amount are required.",
-            variant: "destructive",
-        });
-        return;
+      toast({
+        title: "Validation Error",
+        description: "Unit Name, Size, and a valid Rent amount are required.",
+        variant: "destructive",
+      });
+      return;
     }
     try {
-        await addUnit({
-            ...newUnit,
-            status: 'available',
-        });
-        await loadData(); // Refresh data
-        setIsAddUnitDialogOpen(false);
-        setNewUnit({ name: '', size: '', rent: 0, gateCode: '' }); // Reset form
-        toast({
-            title: "Success",
-            description: "New unit added successfully.",
-        });
+      await addUnit({ ...newUnit, status: 'available' });
+      await loadUnits();
+      setIsAddUnitDialogOpen(false);
+      setNewUnit({ name: '', size: '', rent: 0, gateCode: '' });
+      toast({ title: "Success", description: "New unit added successfully." });
     } catch (error) {
-        console.error("Failed to add unit:", error);
-        toast({
-            title: "Error",
-            description: "Could not add new unit.",
-            variant: "destructive",
-        });
+      console.error("Failed to add unit:", error);
+      toast({ title: "Error", description: "Could not add new unit.", variant: "destructive" });
     }
   };
 
   const handleUpdateUnit = async () => {
-      if (!unitToEdit) return;
-      try {
-        const { id, ...dataToUpdate } = unitToEdit;
-        await updateUnit(id, dataToUpdate);
-        await loadData();
-        setIsEditDialogOpen(false);
-        setUnitToEdit(null);
-        toast({
-            title: "Success",
-            description: "Unit updated successfully."
-        });
-      } catch (error) {
-          console.error("Failed to update unit:", error);
-          toast({
-              title: "Error",
-              description: "Could not update the unit.",
-              variant: "destructive"
-          });
-      }
+    if (!unitToEdit) return;
+    try {
+      const { id, ...dataToUpdate } = unitToEdit;
+      await updateUnit(id, dataToUpdate);
+      await loadUnits();
+      setIsEditDialogOpen(false);
+      setUnitToEdit(null);
+      toast({ title: "Success", description: "Unit updated successfully." });
+    } catch (error) {
+      console.error("Failed to update unit:", error);
+      toast({ title: "Error", description: "Could not update the unit.", variant: "destructive" });
+    }
   };
 
   const getStatusClass = (status: 'available' | 'rented' | 'maintenance') => {
     switch (status) {
-      case 'available':
-        return 'border-green-500 bg-green-50 dark:bg-green-950';
-      case 'rented':
-        return 'border-red-500 bg-red-50 dark:bg-red-950';
-      case 'maintenance':
-        return 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950';
+      case 'available':   return 'border-green-500 bg-green-50 dark:bg-green-950';
+      case 'rented':      return 'border-red-500 bg-red-50 dark:bg-red-950';
+      case 'maintenance': return 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950';
     }
   };
 
-  const getStatusBadgeVariant = (
-    status: 'available' | 'rented' | 'maintenance'
-  ) => {
+  const getStatusBadgeVariant = (status: 'available' | 'rented' | 'maintenance') => {
     switch (status) {
-      case 'available':
-        return 'secondary';
-      case 'rented':
-        return 'destructive';
-      case 'maintenance':
-        return 'outline';
+      case 'available':   return 'secondary';
+      case 'rented':      return 'destructive';
+      case 'maintenance': return 'outline';
     }
   };
 
@@ -287,49 +225,51 @@ export default function UnitsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Units</h2>
-            <p className="text-muted-foreground">
-              View and manage all your units.
-            </p>
+            <p className="text-muted-foreground">View and manage all your units.</p>
           </div>
+
+          {/* Add Unit Dialog */}
           <Dialog open={isAddUnitDialogOpen} onOpenChange={setIsAddUnitDialogOpen}>
             <DialogTrigger asChild>
-                <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Unit
-                </Button>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Unit
+              </Button>
             </DialogTrigger>
             <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Add New Unit</DialogTitle>
-                    <DialogDescription>
-                        Enter the details for the new unit. It will be marked as 'available'.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Unit Name (e.g., Unit 101)</Label>
-                        <Input id="name" value={newUnit.name} onChange={handleNewUnitInputChange} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="size">Size (e.g., 10x10)</Label>
-                        <Input id="size" value={newUnit.size} onChange={handleNewUnitInputChange} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="rent">Monthly Rent ($)</Label>
-                        <Input id="rent" type="number" value={newUnit.rent} onChange={handleNewUnitInputChange} />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="gateCode">Gate Code</Label>
-                        <Input id="gateCode" value={newUnit.gateCode} onChange={handleNewUnitInputChange} />
-                    </div>
+              <DialogHeader>
+                <DialogTitle>Add New Unit</DialogTitle>
+                <DialogDescription>
+                  Enter the details for the new unit. It will be marked as 'available'.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Unit Name (e.g., Unit 101)</Label>
+                  <Input id="name" value={newUnit.name} onChange={handleNewUnitInputChange} />
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddUnitDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAddUnit}>Save Unit</Button>
-                </DialogFooter>
+                <div className="grid gap-2">
+                  <Label htmlFor="size">Size (e.g., 10x10)</Label>
+                  <Input id="size" value={newUnit.size} onChange={handleNewUnitInputChange} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="rent">Monthly Rent ($)</Label>
+                  <Input id="rent" type="number" value={newUnit.rent} onChange={handleNewUnitInputChange} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="gateCode">Gate Code</Label>
+                  <Input id="gateCode" value={newUnit.gateCode} onChange={handleNewUnitInputChange} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddUnitDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddUnit}>Save Unit</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Units Grid */}
         {isLoading ? (
           <p>Loading units from Firestore...</p>
         ) : units.length === 0 ? (
@@ -337,10 +277,7 @@ export default function UnitsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {units.map((unit) => (
-              <Card
-                key={unit.id}
-                className={cn('flex flex-col', getStatusClass(unit.status))}
-              >
+              <Card key={unit.id} className={cn('flex flex-col', getStatusClass(unit.status))}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
                   <DropdownMenu>
@@ -352,7 +289,7 @@ export default function UnitsPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuItem onSelect={() => handleEditClick(unit)}>Edit Unit</DropdownMenuItem>
-                       {unit.status === 'rented' ? (
+                      {unit.status === 'rented' ? (
                         <>
                           <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
                             Re-assign Tenant
@@ -362,9 +299,9 @@ export default function UnitsPage() {
                           </DropdownMenuItem>
                         </>
                       ) : (
-                         <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                        <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
                           Assign Tenant
-                         </DropdownMenuItem>
+                        </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(unit)}>
@@ -376,13 +313,11 @@ export default function UnitsPage() {
                 <CardContent className="flex-grow">
                   <div className="flex justify-between items-center mb-4">
                     <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
-                        {unit.status}
+                      {unit.status}
                     </Badge>
                     <div className="text-xl font-semibold">
                       ${unit.rent.toFixed(2)}
-                      <span className="text-sm font-normal text-muted-foreground">
-                        /mo
-                      </span>
+                      <span className="text-sm font-normal text-muted-foreground">/mo</span>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
@@ -394,7 +329,8 @@ export default function UnitsPage() {
                   {unit.status === 'rented' && unit.tenantId && (
                     <div className="flex items-center text-sm">
                       <User className="h-4 w-4 mr-2 text-primary" />
-                      <span>{tenantsById[unit.tenantId]?.name || 'N/A'}</span>
+                      {/* Name shown from unit data if stored, otherwise just ID */}
+                      <span>{unit.tenantName ?? unit.tenantId}</span>
                     </div>
                   )}
                   {unit.status === 'maintenance' && (
@@ -421,33 +357,27 @@ export default function UnitsPage() {
           <DialogHeader>
             <DialogTitle>Assign Tenant to {selectedUnit?.name}</DialogTitle>
             <DialogDescription>
-              Select a tenant to assign to this unit. This will mark the unit as 'rented'.
+              Search and select a tenant to assign to this unit.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="tenant-select">Select Tenant</Label>
-              <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
-                <SelectTrigger id="tenant-select">
-                  <SelectValue placeholder="Select a tenant..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants
-                    .filter(tenant => tenant.id !== selectedUnit?.tenantId)
-                    .map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="py-2 space-y-3">
+            <TenantSearchPicker
+              excludeTenantId={selectedUnit?.tenantId}
+              selectedTenantId={selectedTenant?.id}
+              onSelect={(tenant) => setSelectedTenant(tenant)}
+            />
+            {/* Confirm selection display */}
+            {selectedTenant && (
+              <p className="text-sm text-muted-foreground">
+                Selected: <span className="font-medium text-foreground">{selectedTenant.name}</span>
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAssignTenant} disabled={!selectedTenantId}>
+            <Button onClick={handleAssignTenant} disabled={!selectedTenant}>
               Assign Tenant
             </Button>
           </DialogFooter>
@@ -459,27 +389,25 @@ export default function UnitsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit {unitToEdit?.name}</DialogTitle>
-            <DialogDescription>
-              Update the details for this unit.
-            </DialogDescription>
+            <DialogDescription>Update the details for this unit.</DialogDescription>
           </DialogHeader>
           {unitToEdit && (
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                  <Label htmlFor="edit-name">Unit Name</Label>
-                  <Input id="edit-name" value={unitToEdit.name} onChange={handleEditUnitInputChange} />
+                <Label htmlFor="edit-name">Unit Name</Label>
+                <Input id="edit-name" value={unitToEdit.name} onChange={handleEditUnitInputChange} />
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="edit-size">Size</Label>
-                  <Input id="edit-size" value={unitToEdit.size} onChange={handleEditUnitInputChange} />
+                <Label htmlFor="edit-size">Size</Label>
+                <Input id="edit-size" value={unitToEdit.size} onChange={handleEditUnitInputChange} />
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="edit-rent">Monthly Rent ($)</Label>
-                  <Input id="edit-rent" type="number" value={unitToEdit.rent} onChange={handleEditUnitInputChange} />
+                <Label htmlFor="edit-rent">Monthly Rent ($)</Label>
+                <Input id="edit-rent" type="number" value={unitToEdit.rent} onChange={handleEditUnitInputChange} />
               </div>
               <div className="grid gap-2">
-                  <Label htmlFor="edit-gateCode">Gate Code</Label>
-                  <Input id="edit-gateCode" value={unitToEdit.gateCode} onChange={handleEditUnitInputChange} />
+                <Label htmlFor="edit-gateCode">Gate Code</Label>
+                <Input id="edit-gateCode" value={unitToEdit.gateCode} onChange={handleEditUnitInputChange} />
               </div>
             </div>
           )}
@@ -501,12 +429,8 @@ export default function UnitsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUnassignDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmUnassign}>
-              Confirm Unassign
-            </Button>
+            <Button variant="outline" onClick={() => setIsUnassignDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmUnassign}>Confirm Unassign</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -518,23 +442,12 @@ export default function UnitsPage() {
             <DialogTitle>Delete Unit</DialogTitle>
             <DialogDescription>
               Are you sure you want to permanently delete{' '}
-              <strong>{unitToDelete?.name}</strong>? This action cannot be
-              undone.
+              <strong>{unitToDelete?.name}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-            >
-              Delete Unit
-            </Button>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>Delete Unit</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

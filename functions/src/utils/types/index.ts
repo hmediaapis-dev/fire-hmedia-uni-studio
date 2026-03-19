@@ -23,6 +23,7 @@ export type Unit = {
   tenantId?: string;
   gateCode: string;
   startDate?: Date; // Date the unit was assigned to a tenant
+  tenantName?: string; // Name of the tenant (optional)
 };
 
 export type Invoice = {

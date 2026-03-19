@@ -28,6 +28,7 @@ const unitConverter: FirestoreDataConverter<Unit> = {
             status: data.status,
             gateCode: data.gateCode,
             tenantId: data.tenantId ?? null,
+            tenantName: data.tenantName ?? null,
             startDate: data.startDate ? Timestamp.fromDate(data.startDate) : null,
         };
     },
@@ -41,6 +42,7 @@ const unitConverter: FirestoreDataConverter<Unit> = {
             status: data.status,
             gateCode: data.gateCode,
             tenantId: data.tenantId ?? undefined,
+            tenantName: data.tenantName ?? undefined,
             startDate: data.startDate ? data.startDate.toDate() : undefined,
         } as Unit;
     },
@@ -84,7 +86,7 @@ export async function deleteUnit(unitId: string, tenantId?: string): Promise<voi
 }
 
 
-export async function assignTenantToUnit(unitId: string, tenantId: string, oldTenantId?: string): Promise<void> {
+export async function assignTenantToUnit(unitId: string, tenantId: string, tenantName: string, oldTenantId?: string): Promise<void> {
     const batch = writeBatch(db);
     const unitRef = doc(db, 'units', unitId);
     const newTenantRef = doc(db, 'tenants', tenantId);
@@ -93,6 +95,7 @@ export async function assignTenantToUnit(unitId: string, tenantId: string, oldTe
     batch.update(unitRef, { 
         status: 'rented', 
         tenantId: tenantId,
+        tenantName: tenantName,
         startDate: new Date(),
     });
 
@@ -118,6 +121,7 @@ export async function unassignTenantFromUnit(unitId: string, tenantId: string): 
         status: 'available', 
         tenantId: deleteField(),
         startDate: deleteField(),
+        tenantName: deleteField(),
     });
 
     // Remove unit from tenant
