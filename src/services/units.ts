@@ -121,6 +121,11 @@ export async function assignTenantToUnit(unitId: string, tenantId: string, tenan
     }
 
     await batch.commit();
+
+    const dashboardUpdate = {
+        availableUnits: (await getUnits()).filter(unit => unit.status === 'available').length,
+    }
+    await updateDoc(doc(db, 'settings', 'dashboard'), dashboardUpdate);  //my second try and updating when needed
 }
 
 export async function unassignTenantFromUnit(unitId: string, tenantId: string): Promise<void> {
@@ -140,4 +145,9 @@ export async function unassignTenantFromUnit(unitId: string, tenantId: string): 
     batch.update(tenantRef, { units: arrayRemove(unitId) });
 
     await batch.commit();
+
+    const dashboardUpdate = {
+        availableUnits: (await getUnits()).filter(unit => unit.status === 'available').length,
+    }
+    await updateDoc(doc(db, 'settings', 'dashboard'), dashboardUpdate);
 }
