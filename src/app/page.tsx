@@ -24,6 +24,8 @@ import { getTenants } from '@/services/tenants';
 import { getUnits } from '@/services/units';
 import { getInvoices } from '@/services/invoices';
 import { useToast } from "@/hooks/use-toast";
+import type { Settings, MainSettings, DashboardSettings } from '@/types';
+import { getSettings, updateSettings } from '@/services/settings'; 
 
 export default function DashboardPage() {
   const { toast } = useToast();
@@ -31,6 +33,13 @@ export default function DashboardPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
+    // Provide default values for all properties of DashboardSettings
+    id: "dashboard",
+    totalUnits: 0,
+    availableUnits: 0,
+    // ... other properties
+  });
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -44,6 +53,10 @@ export default function DashboardPage() {
         setTenants(tenantsData);
         setUnits(unitsData);
         setInvoices(invoicesData);
+        const savedDashboardSettings = await getSettings<DashboardSettings>("dashboard"); 
+        if (savedDashboardSettings) {
+          setDashboardSettings(savedDashboardSettings);
+        }
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
         toast({
@@ -58,10 +71,12 @@ export default function DashboardPage() {
     loadDashboardData();
   }, [toast]);
 
-  const totalUnits = units.length;
+  /* const totalUnits = units.length;
   const availableUnits = units.filter(
     (unit) => unit.status === 'available'
-  ).length;
+  ).length; */
+  //last two are old and need to delete CAN KABOOM and adjust all mega reads next
+
   const activeTenants = tenants.length;
   const openBalance = invoices
     .filter((invoice) => invoice.status === 'unpaid')
@@ -89,9 +104,9 @@ export default function DashboardPage() {
               <Warehouse className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalUnits}</div>
+              <div className="text-2xl font-bold">{dashboardSettings?.totalUnits ?? "—"}</div>
               <p className="text-xs text-muted-foreground">
-                {availableUnits} available
+                {dashboardSettings?.availableUnits ?? "—"} available
               </p>
             </CardContent>
           </Card>
@@ -128,7 +143,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {totalUnits > 0 ? (( (totalUnits - availableUnits) / totalUnits) * 100).toFixed(1) : 0}%
+                {dashboardSettings.totalUnits > 0 ? (( (dashboardSettings.totalUnits - dashboardSettings.availableUnits) / dashboardSettings.totalUnits) * 100).toFixed(1) : 0}%
               </div>
               <p className="text-xs text-muted-foreground">
                 Based on rented units

@@ -1,5 +1,6 @@
 import { db } from '@/lib/firebase';
 import type { Unit, Tenant } from '@/types';
+import type { Settings, DashboardSettings } from '@/types';
 import {
   collection,
   getDocs,
@@ -57,6 +58,11 @@ export async function getUnits(): Promise<Unit[]> {
 export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
     const unitsCol = collection(db, 'units').withConverter(unitConverter);
     const docRef = await addDoc(unitsCol, unitData);
+    const dashboardUpdate = {
+        totalUnits: (await getUnits()).length,
+        availableUnits: (await getUnits()).filter(unit => unit.status === 'available').length,
+    }
+    await updateDoc(doc(db, 'settings', 'dashboard'), dashboardUpdate);  //update dashboard settings when needed
     return docRef.id;
 }
 
@@ -83,6 +89,12 @@ export async function deleteUnit(unitId: string, tenantId?: string): Promise<voi
     }
 
     await batch.commit();
+
+    const dashboardUpdate = {
+        totalUnits: (await getUnits()).length,
+        availableUnits: (await getUnits()).filter(unit => unit.status === 'available').length,
+    }
+    await updateDoc(doc(db, 'settings', 'dashboard'), dashboardUpdate);  //my first try and updating when needed
 }
 
 

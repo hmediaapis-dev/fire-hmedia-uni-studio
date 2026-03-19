@@ -34,7 +34,14 @@ import { getUnits, assignTenantToUnit, unassignTenantFromUnit, addUnit, updateUn
 import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
 import { TenantSearchPicker } from '@/components/TenantSearchPicker';
+import { getSettings, updateSettings } from '@/services/settings';  //services, may not need this if you know the base command
 
+type DashboardSettings = {
+  id: "dashboard";
+  availableUnits: number;
+  totalUnits: number;
+  // ...any other fields already in there
+};    //prob did not need this if type is imported
 
 export default function UnitsPage() {
   const { toast } = useToast();
@@ -53,6 +60,7 @@ export default function UnitsPage() {
   const [unitToEdit, setUnitToEdit] = useState<Unit | null>(null);
   const [unitToUnassign, setUnitToUnassign] = useState<Unit | null>(null);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings | null>(null); //needed a state variable
 
   // Selected tenant from the search picker
   const [selectedTenant, setSelectedTenant] = useState<Pick<Tenant, 'id' | 'name'> | null>(null);
@@ -68,6 +76,10 @@ export default function UnitsPage() {
     try {
       setIsLoading(true);
       const unitsData = await getUnits();
+      const savedDashboardSettings = await getSettings<DashboardSettings>("dashboard");  //fetch it
+      if (savedDashboardSettings) {
+        setDashboardSettings(savedDashboardSettings);
+      }
       const sortedUnits = unitsData.sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -221,134 +233,151 @@ export default function UnitsPage() {
 
   return (
     <>
-      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Units</h2>
-            <p className="text-muted-foreground">View and manage all your units.</p>
+      <div className="flex flex-col">
+        {/* Scrollable main content */}
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Units</h2>
+              <p className="text-muted-foreground">View and manage all your units.</p>
+            </div>
+
+            {/* Add Unit Dialog */}
+            <Dialog open={isAddUnitDialogOpen} onOpenChange={setIsAddUnitDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Unit
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Unit</DialogTitle>
+                  <DialogDescription>
+                    Enter the details for the new unit. It will be marked as 'available'.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Unit Name (e.g., Unit 101)</Label>
+                    <Input id="name" value={newUnit.name} onChange={handleNewUnitInputChange} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="size">Size (e.g., 10x10)</Label>
+                    <Input id="size" value={newUnit.size} onChange={handleNewUnitInputChange} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="rent">Monthly Rent ($)</Label>
+                    <Input id="rent" type="number" value={newUnit.rent} onChange={handleNewUnitInputChange} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="gateCode">Gate Code</Label>
+                    <Input id="gateCode" value={newUnit.gateCode} onChange={handleNewUnitInputChange} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddUnitDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleAddUnit}>Save Unit</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
-          {/* Add Unit Dialog */}
-          <Dialog open={isAddUnitDialogOpen} onOpenChange={setIsAddUnitDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Unit
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Unit</DialogTitle>
-                <DialogDescription>
-                  Enter the details for the new unit. It will be marked as 'available'.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Unit Name (e.g., Unit 101)</Label>
-                  <Input id="name" value={newUnit.name} onChange={handleNewUnitInputChange} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="size">Size (e.g., 10x10)</Label>
-                  <Input id="size" value={newUnit.size} onChange={handleNewUnitInputChange} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="rent">Monthly Rent ($)</Label>
-                  <Input id="rent" type="number" value={newUnit.rent} onChange={handleNewUnitInputChange} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="gateCode">Gate Code</Label>
-                  <Input id="gateCode" value={newUnit.gateCode} onChange={handleNewUnitInputChange} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddUnitDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleAddUnit}>Save Unit</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          {/* Units Grid */}
+          {isLoading ? (
+            <p>Loading units from Firestore...</p>
+          ) : units.length === 0 ? (
+            <p className="text-muted-foreground p-4">No units found. Add one to get started.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {units.map((unit) => (
+                <Card key={unit.id} className={cn('flex flex-col', getStatusClass(unit.status))}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onSelect={() => handleEditClick(unit)}>Edit Unit</DropdownMenuItem>
+                        {unit.status === 'rented' ? (
+                          <>
+                            <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                              Re-assign Tenant
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUnassignClick(unit)}>
+                              Unassign Tenant
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
+                            Assign Tenant
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(unit)}>
+                          Delete Unit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <div className="flex justify-between items-center mb-4">
+                      <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
+                        {unit.status}
+                      </Badge>
+                      <div className="text-xl font-semibold">
+                        ${unit.rent.toFixed(2)}
+                        <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Gate Code: <span className="font-mono">{unit.gateCode}</span>
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    {unit.status === 'rented' && unit.tenantId && (
+                      <div className="flex items-center text-sm">
+                        <User className="h-4 w-4 mr-2 text-primary" />
+                        <span>{unit.tenantName ?? unit.tenantId}</span>
+                      </div>
+                    )}
+                    {unit.status === 'maintenance' && (
+                      <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400">
+                        <Wrench className="h-4 w-4 mr-2" />
+                        <span>Under Maintenance</span>
+                      </div>
+                    )}
+                    {unit.status === 'available' && (
+                      <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+                        <span>Available for rent</span>
+                      </div>
+                    )}
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Units Grid */}
-        {isLoading ? (
-          <p>Loading units from Firestore...</p>
-        ) : units.length === 0 ? (
-          <p className="text-muted-foreground p-4">No units found. Add one to get started.</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {units.map((unit) => (
-              <Card key={unit.id} className={cn('flex flex-col', getStatusClass(unit.status))}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onSelect={() => handleEditClick(unit)}>Edit Unit</DropdownMenuItem>
-                      {unit.status === 'rented' ? (
-                        <>
-                          <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                            Re-assign Tenant
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleUnassignClick(unit)}>
-                            Unassign Tenant
-                          </DropdownMenuItem>
-                        </>
-                      ) : (
-                        <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                          Assign Tenant
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(unit)}>
-                        Delete Unit
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <div className="flex justify-between items-center mb-4">
-                    <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
-                      {unit.status}
-                    </Badge>
-                    <div className="text-xl font-semibold">
-                      ${unit.rent.toFixed(2)}
-                      <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Gate Code: <span className="font-mono">{unit.gateCode}</span>
-                  </p>
-                </CardContent>
-                <CardFooter>
-                  {unit.status === 'rented' && unit.tenantId && (
-                    <div className="flex items-center text-sm">
-                      <User className="h-4 w-4 mr-2 text-primary" />
-                      {/* Name shown from unit data if stored, otherwise just ID */}
-                      <span>{unit.tenantName ?? unit.tenantId}</span>
-                    </div>
-                  )}
-                  {unit.status === 'maintenance' && (
-                    <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400">
-                      <Wrench className="h-4 w-4 mr-2" />
-                      <span>Under Maintenance</span>
-                    </div>
-                  )}
-                  {unit.status === 'available' && (
-                    <div className="flex items-center text-sm text-green-600 dark:text-green-400">
-                      <span>Available for rent</span>
-                    </div>
-                  )}
-                </CardFooter>
-              </Card>
-            ))}
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-3 flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-sm text-muted-foreground">Available Units</span>
+            <span className="text-sm font-semibold">{dashboardSettings?.availableUnits ?? "—"}</span>
           </div>
-        )}
+          <div className="w-px h-4 bg-border" />
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-primary" />
+            <span className="text-sm text-muted-foreground">Total Units</span>
+            <span className="text-sm font-semibold">{dashboardSettings?.totalUnits ?? "—"}</span>
+          </div>
+        </div>
       </div>
 
       {/* Assign Tenant Dialog */}
