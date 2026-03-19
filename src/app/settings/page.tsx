@@ -26,7 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect } from 'react';
 import { getSettings, updateSettings } from '@/services/settings';                        //Services for getting and updating settings
-import type { Settings } from '@/types';
+import type { Settings, MainSettings, DashboardSettings } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -34,7 +34,7 @@ import { runManualInvoiceGeneration, setAdminClaim } from '@/services/functions'
 import { useAuth } from '@/context/auth-context';
 
 
-const defaultSettings: Settings = {
+const defaultSettings: MainSettings = {
   id: 'main',
   contactEmail: '',
   contactPhone: '',
@@ -54,7 +54,7 @@ export default function SettingsPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [settings, setSettings] = useState<MainSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -67,7 +67,8 @@ export default function SettingsPage() {
     async function loadSettings() {
       try {
         setIsLoading(true);
-        const savedSettings = await getSettings();
+        //const savedSettings = await getSettings("main");
+        const savedSettings = await getSettings<MainSettings>("main");
         if (savedSettings) {
           setSettings(savedSettings);
         }

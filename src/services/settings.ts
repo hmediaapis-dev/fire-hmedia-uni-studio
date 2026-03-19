@@ -1,34 +1,50 @@
 import { db } from '@/lib/firebase';
-import type { Settings } from '@/types';
+import type { Settings, MainSettings, DashboardSettings } from '@/types';
 import {
   doc,
   getDoc,
   setDoc,
 } from 'firebase/firestore';
 
-const settingsDocRef = doc(db, 'settings', 'main');
+const mainDocRef = doc(db, 'settings', 'main');
+const dashboardDocRef = doc(db, 'settings', 'dashboard');
 
-const settingsConverter = {
-    toFirestore: (data: Settings) => data,
-    fromFirestore: (snapshot: any, options: any): Settings => {
-        const data = snapshot.data(options);
-        return {
-            id: snapshot.id,
-            ...data,
-        };
-    },
+const mainConverter = {
+  toFirestore: (data: MainSettings) => data,
+  fromFirestore: (snapshot: any, options: any): MainSettings => {
+    const data = snapshot.data(options);
+    return {
+      id: 'main' as const,
+      ...data,
+    };
+  },
 };
 
-export async function getSettings(): Promise<Settings | null> {
-  const docSnap = await getDoc(settingsDocRef.withConverter(settingsConverter));
-  if (docSnap.exists()) {
-    return docSnap.data();
+const dashboardConverter = {
+  toFirestore: (data: DashboardSettings) => data,
+  fromFirestore: (snapshot: any, options: any): DashboardSettings => {
+    const data = snapshot.data(options);
+    return {
+      id: 'dashboard' as const,
+      ...data,
+    };
+  },
+};
+
+export async function getSettings<T extends Settings>(id: T['id']): Promise<T | null> {
+  if (id === 'main') {
+    const docSnap = await getDoc(mainDocRef.withConverter(mainConverter));
+    return docSnap.exists() ? (docSnap.data() as T) : null;
+  } else {
+    const docSnap = await getDoc(dashboardDocRef.withConverter(dashboardConverter));
+    return docSnap.exists() ? (docSnap.data() as T) : null;
   }
-  return null;
 }
 
 export async function updateSettings(settings: Settings): Promise<void> {
-    // Use setDoc with merge: true to create the document if it doesn't exist,
-    // or update it if it does.
-    await setDoc(settingsDocRef, settings, { merge: true });
+  if (settings.id === 'main') {
+    await setDoc(mainDocRef, settings, { merge: true });
+  } else {
+    await setDoc(dashboardDocRef, settings, { merge: true });
+  }
 }

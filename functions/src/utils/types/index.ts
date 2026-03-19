@@ -66,15 +66,21 @@ export type Document = {
   storagePath: string; // Path to the file in Firebase Storage
 };
 
-export type Settings = {
+export type MainSettings = {
   id: 'main';
   contactEmail: string;
   contactPhone: string;
   mainGateCode: string;
   autoBilling: boolean;
   invoiceDay: number;
-  currentInvoiceNum: number; // Add this line
-  defaultRates: {
-    [key: string]: number;
-  };
+  currentInvoiceNum: number;
+  defaultRates: { [key: string]: number };
 };
+
+export type DashboardSettings = {
+  id: 'dashboard';
+  totalUnits: number;
+  availableUnits: number;
+};
+
+export type Settings = MainSettings | DashboardSettings;
