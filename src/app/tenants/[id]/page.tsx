@@ -192,6 +192,7 @@ export default function TenantDetailPage() {
     try {
       await updateDoc(doc(db, "tenants", tenantId), {
         name: editedTenant.name,
+        nameLower: editedTenant.name.toLowerCase(),
         email: editedTenant.email ?? "",
         phone: editedTenant.phone ?? "",
         address: editedTenant.address ?? "",
