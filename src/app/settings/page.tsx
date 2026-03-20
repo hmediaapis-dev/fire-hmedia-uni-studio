@@ -25,8 +25,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useState, useEffect } from 'react';
-import { getSettings, updateSettings } from '@/services/settings';                        //Services for getting and updating settings
-import type { Settings, MainSettings, DashboardSettings } from '@/types';
+import { getSettings, updateSettings } from '@/services/settings';          //Services for getting and updating settings
+import type { Settings, MainSettings, DashboardSettings } from '@/types';   //Types for settings, main or dashboard
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

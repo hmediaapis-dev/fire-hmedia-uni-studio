@@ -68,10 +68,12 @@ export async function addUnit(unitData: Omit<Unit, 'id'>): Promise<string> {
 
 export async function updateUnit(unitId: string, unitData: Partial<Omit<Unit, 'id'>>): Promise<void> {
     const unitRef = doc(db, 'units', unitId);
-    const dataToUpdate: any = {...unitData};
-    if (unitData.startDate) {
-        dataToUpdate.startDate = Timestamp.fromDate(unitData.startDate);
-    }
+    const dataToUpdate: any = { ...unitData };
+
+    if ('tenantId' in unitData) dataToUpdate.tenantId = unitData.tenantId ?? null;
+    if ('tenantName' in unitData) dataToUpdate.tenantName = unitData.tenantName ?? null;
+    if ('startDate' in unitData) dataToUpdate.startDate = unitData.startDate ? Timestamp.fromDate(unitData.startDate) : null;
+
     await updateDoc(unitRef, dataToUpdate);
 }
 

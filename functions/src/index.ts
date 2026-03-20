@@ -531,15 +531,15 @@ export const addTenant = onCall(async (request) => {
 
     // Validate data
     const data = request.data;
-    if (!data.name || !data.email) {
-        throw new HttpsError('invalid-argument', 'The function must be called with "name" and "email" arguments.');
+    if (!data.name || !data.phone) {
+        throw new HttpsError('invalid-argument', 'The function must be called with "name" and "phone" arguments.');
     }
 
     try {
         const newTenant = {
             name: data.name,
             nameLower: data.name.toLowerCase(),
-            email: data.email,
+            email: data.email || '',
             phone: data.phone || '',
             address: data.address || '',
             notes: data.notes || '',
