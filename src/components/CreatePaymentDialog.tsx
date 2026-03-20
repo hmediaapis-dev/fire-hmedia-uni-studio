@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 
-import { getTenants } from '@/services/tenants';
-import { db } from '@/lib/firebase'; 
+import { db } from '@/lib/firebase';
 import { recordPayment } from '@/services/payments';
 
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -26,11 +25,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
-// Types
-type TenantOption = {
-  id: string;
-  name: string;
-};
+// Sentinel value used in the Select to represent "no invoice / general payment"
+const GENERAL_PAYMENT_VALUE = '__general__';
 
 type InvoiceOption = {
   id: string;
@@ -42,9 +38,9 @@ type InvoiceOption = {
 };
 
 type NewPaymentForm = {
-  tenantId: string;
   amount: string;
   paymentMethod: 'Cash' | 'Check' | 'Credit Card' | 'Other' | '';
+  // Empty string means "general payment — no invoice"
   invoiceId: string;
   notes: string;
 };
@@ -52,74 +48,47 @@ type NewPaymentForm = {
 type CreatePaymentDialogProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The tenant this dialog is scoped to. No tenant picker needed. */
+  tenantId: string;
   refetchPayments: () => void;
-  onClose: () => void;
 };
 
-export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onClose }: CreatePaymentDialogProps) {
+export function CreatePaymentDialog({
+  isOpen,
+  onOpenChange,
+  tenantId,
+  refetchPayments,
+}: CreatePaymentDialogProps) {
   const { toast } = useToast();
-  const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
-  const [isLoadingTenants, setIsLoadingTenants] = useState(false);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newPayment, setNewPayment] = useState<NewPaymentForm>({
-    tenantId: '',
     amount: '',
     paymentMethod: '',
     invoiceId: '',
     notes: '',
   });
 
-  // Fetch tenants when dialog opens
+  // Fetch this tenant's unpaid invoices whenever the dialog opens
   useEffect(() => {
-    if (isOpen && tenants.length === 0) {
-      fetchTenants();
+    if (isOpen && tenantId) {
+      fetchInvoicesForTenant(tenantId);
     }
-  }, [isOpen, tenants.length]);
+  }, [isOpen, tenantId]);
 
-  // Fetch invoices when tenant is selected
-  useEffect(() => {
-    if (newPayment.tenantId) {
-      fetchInvoicesForTenant(newPayment.tenantId);
-    } else {
-      setInvoices([]);
-      setNewPayment(prev => ({ ...prev, invoiceId: '' }));
-    }
-  }, [newPayment.tenantId]);
-
-  const fetchTenants = async () => {
-    setIsLoadingTenants(true);
-    try {
-      const tenantsList = await getTenants();
-      setTenants(tenantsList.map(tenant => ({
-        id: tenant.id,
-        name: tenant.name,
-      })));
-    } catch (error) {
-      console.error('Error fetching tenants:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load tenants. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingTenants(false);
-    }
-  };
-
-  const fetchInvoicesForTenant = async (tenantId: string) => {
+  const fetchInvoicesForTenant = async (id: string) => {
     setIsLoadingInvoices(true);
     try {
       const invoicesRef = collection(db, 'invoices');
       const q = query(
         invoicesRef,
-        where('tenantId', '==', tenantId),
+        where('tenantId', '==', id),
         where('status', 'in', ['unpaid', 'partially-paid'])
       );
       const snapshot = await getDocs(q);
-      
-      const invoicesList = snapshot.docs.map(doc => {
+
+      const invoicesList = snapshot.docs.map((doc) => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -131,16 +100,15 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
         };
       });
 
-      // Sort by invoice number descending (newest first)
+      // Newest invoice first
       invoicesList.sort((a, b) => b.invoiceNumber - a.invoiceNumber);
-      
       setInvoices(invoicesList);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       toast({
-        title: "Error",
-        description: "Failed to load invoices. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load invoices. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoadingInvoices(false);
@@ -151,29 +119,22 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { id, value } = e.target;
-    setNewPayment(prev => ({
+    setNewPayment((prev) => ({
       ...prev,
       [id.replace('create-', '')]: value,
     }));
   };
 
-  const handleTenantSelect = (value: string) => {
-    setNewPayment(prev => ({
-      ...prev,
-      tenantId: value,
-      invoiceId: '', // Reset invoice selection when tenant changes
-    }));
-  };
-
   const handleInvoiceSelect = (value: string) => {
-    setNewPayment(prev => ({
+    // GENERAL_PAYMENT_VALUE means user explicitly chose "no invoice"
+    setNewPayment((prev) => ({
       ...prev,
-      invoiceId: value,
+      invoiceId: value === GENERAL_PAYMENT_VALUE ? '' : value,
     }));
   };
 
   const handlePaymentMethodSelect = (value: string) => {
-    setNewPayment(prev => ({
+    setNewPayment((prev) => ({
       ...prev,
       paymentMethod: value as 'Cash' | 'Check' | 'Credit Card' | 'Other',
     }));
@@ -181,23 +142,20 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
 
   const resetForm = () => {
     setNewPayment({
-      tenantId: '',
       amount: '',
       paymentMethod: '',
       invoiceId: '',
       notes: '',
     });
-    setInvoices([]);
   };
 
   const handleCreatePayment = async () => {
-    // Validation
-    if (!newPayment.tenantId || !newPayment.amount || 
-        !newPayment.paymentMethod || !newPayment.invoiceId) {
+    // invoiceId is now OPTIONAL — no longer a required field
+    if (!newPayment.amount || !newPayment.paymentMethod) {
       toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please fill in the amount and payment method.',
+        variant: 'destructive',
       });
       return;
     }
@@ -205,9 +163,9 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
     const amount = parseFloat(newPayment.amount);
     if (isNaN(amount) || amount <= 0) {
       toast({
-        title: "Validation Error",
-        description: "Please enter a valid amount.",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please enter a valid positive amount.',
+        variant: 'destructive',
       });
       return;
     }
@@ -215,43 +173,40 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
     setIsSubmitting(true);
     try {
       const paymentData = {
-        tenantId: newPayment.tenantId,
-        amount: amount,
-        paymentMethod: newPayment.paymentMethod,
-        invoiceIds: [newPayment.invoiceId], // Single invoice in array
+        tenantId,
+        amount,
+        paymentMethod: newPayment.paymentMethod as 'Cash' | 'Check' | 'Credit Card' | 'Other',
+        // Only include invoiceIds if one was actually selected
+        invoiceIds: newPayment.invoiceId ? [newPayment.invoiceId] : [],
         notes: newPayment.notes || undefined,
         status: 'complete' as const,
       };
 
       const result = await recordPayment(paymentData);
-      
+
       if (result.success) {
-        // Get tenant name for toast
-        const selectedTenant = tenants.find(t => t.id === newPayment.tenantId);
-        const tenantName = selectedTenant?.name || 'Unknown Tenant';
-        
-        // Success! Close dialog and reset form
         onOpenChange(false);
         resetForm();
-        
-        // Show success toast
+
+        const invoiceMsg = newPayment.invoiceId
+          ? `applied to invoice`
+          : `applied to tenant balance`;
+
         toast({
-          title: "Payment Recorded",
-          description: `Payment of $${amount.toFixed(2)} recorded for ${tenantName}`,
+          title: 'Payment Recorded',
+          description: `$${amount.toFixed(2)} ${invoiceMsg}.`,
         });
-        
-        // Optional: Refresh payment list
+
         refetchPayments();
-        onClose();
       } else {
         throw new Error(result.message || 'Failed to record payment');
       }
     } catch (error: any) {
       console.error('Error recording payment:', error);
       toast({
-        title: "Error",
+        title: 'Error',
         description: error.message || 'Failed to record payment. Please try again.',
-        variant: "destructive",
+        variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
@@ -260,14 +215,16 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
 
   const getInvoiceDisplayText = (invoice: InvoiceOption) => {
     const remaining = invoice.amount - (invoice.amountPaid || 0);
-    return `#${invoice.invoiceNumber} - ${invoice.monthRange} ($${remaining.toFixed(2)} remaining)`;
+    return `#${invoice.invoiceNumber} — ${invoice.monthRange} ($${remaining.toFixed(2)} remaining)`;
   };
 
   const handleClose = () => {
-    onClose(); // Call the parent's function
-    // Any other close logic
     onOpenChange(false);
+    resetForm();
   };
+
+  // What value should the Select show? Map empty invoiceId → our sentinel
+  const selectValue = newPayment.invoiceId === '' ? GENERAL_PAYMENT_VALUE : newPayment.invoiceId;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -275,73 +232,59 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
         <DialogHeader>
           <DialogTitle>Record New Payment</DialogTitle>
           <DialogDescription>
-            Record a payment from a tenant and apply it to an invoice.
+            Apply a payment to a specific invoice, or post it directly to the
+            tenant&apos;s balance as a general payment.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Tenant Selection */}
-          <div className="grid gap-2">
-            <Label htmlFor="create-tenant">
-              Tenant <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              key={tenants.length}
-              value={newPayment.tenantId}
-              onValueChange={handleTenantSelect}
-              disabled={isLoadingTenants}
-            >
-              <SelectTrigger id="create-tenant">
-                <SelectValue placeholder={isLoadingTenants ? "Loading tenants..." : "Select a tenant"} />
-              </SelectTrigger>
-              <SelectContent>
-                {tenants.length === 0 ? (
-                  <SelectItem value="no-tenants" disabled>No tenants available</SelectItem>
-                ) : (
-                  tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Invoice Selection */}
+          {/* Invoice Selection — now optional */}
           <div className="grid gap-2">
             <Label htmlFor="create-invoice">
-              Invoice <span className="text-red-500">*</span>
+              Apply To{' '}
+              <span className="text-muted-foreground font-normal text-xs">
+                (optional)
+              </span>
             </Label>
             <Select
-              key={`${newPayment.tenantId}-${invoices.length}`}
-              value={newPayment.invoiceId}
+              key={`${tenantId}-${invoices.length}`}
+              value={selectValue}
               onValueChange={handleInvoiceSelect}
-              disabled={!newPayment.tenantId || isLoadingInvoices}
+              disabled={isLoadingInvoices}
             >
               <SelectTrigger id="create-invoice">
-                <SelectValue placeholder={
-                  !newPayment.tenantId 
-                    ? "Select a tenant first" 
-                    : isLoadingInvoices 
-                    ? "Loading invoices..." 
-                    : "Select an invoice"
-                } />
+                <SelectValue
+                  placeholder={
+                    isLoadingInvoices ? 'Loading invoices...' : 'Select an invoice or general payment'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {invoices.length === 0 ? (
-                  <SelectItem value="no-invoices" disabled>
-                    {newPayment.tenantId ? "No unpaid invoices" : "Select a tenant first"}
-                  </SelectItem>
-                ) : (
-                  invoices.map((invoice) => (
-                    <SelectItem key={invoice.id} value={invoice.id}>
-                      {getInvoiceDisplayText(invoice)}
+                {/* Always show the general payment option at the top */}
+                <SelectItem value={GENERAL_PAYMENT_VALUE}>
+                  <span className="font-medium">General Payment — Apply to Balance</span>
+                </SelectItem>
+
+                {invoices.length > 0 && (
+                  <>
+                    {/* Visual separator text — not a real separator component to keep it simple */}
+                    <SelectItem value="__divider__" disabled className="text-xs text-muted-foreground py-1">
+                      ── Unpaid Invoices ──
                     </SelectItem>
-                  ))
+                    {invoices.map((invoice) => (
+                      <SelectItem key={invoice.id} value={invoice.id}>
+                        {getInvoiceDisplayText(invoice)}
+                      </SelectItem>
+                    ))}
+                  </>
                 )}
               </SelectContent>
             </Select>
+            {newPayment.invoiceId === '' && (
+              <p className="text-xs text-muted-foreground">
+                No invoice selected — payment will be posted directly to the tenant&apos;s balance.
+              </p>
+            )}
           </div>
 
           {/* Payment Method */}
@@ -395,19 +338,16 @@ export function CreatePaymentDialog({ isOpen, onOpenChange, refetchPayments, onC
         </div>
 
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              onOpenChange(false);
-              resetForm();
-            }}
+          <Button
+            variant="outline"
+            onClick={handleClose}
             disabled={isSubmitting}
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleCreatePayment}
-            disabled={isSubmitting || isLoadingTenants || isLoadingInvoices}
+            disabled={isSubmitting || isLoadingInvoices}
           >
             {isSubmitting ? 'Recording...' : 'Record Payment'}
           </Button>

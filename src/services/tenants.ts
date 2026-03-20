@@ -1,7 +1,9 @@
 import { db } from '@/lib/firebase';
 import type { Tenant } from '@/types';
 import { 
-  collection, 
+  collection,
+  doc,
+  getDoc, 
   getDocs, 
   Timestamp,
   FirestoreDataConverter,
@@ -43,6 +45,13 @@ export async function getTenants(): Promise<Tenant[]> {
   tenants.sort((a, b) => a.name.localeCompare(b.name));
   
   return tenants;
+}
+
+export async function getTenant(tenantId: string): Promise<Tenant | null> {
+  const tenantRef = doc(db, 'tenants', tenantId).withConverter(tenantConverter);
+  const snapshot = await getDoc(tenantRef);
+  if (!snapshot.exists()) return null;
+  return snapshot.data();
 }
 
 export async function addTenant(tenantData: Omit<Tenant, 'id' | 'joinDate' | 'units' | 'rent' | 'balance'>): Promise<string> {

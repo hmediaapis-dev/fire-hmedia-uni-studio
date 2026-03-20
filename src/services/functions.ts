@@ -1,11 +1,15 @@
 
 import { functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import type { Tenant, Payment } from '@/types';
+import type { Invoice, Tenant, Payment } from '@/types';
 
 //invoice CRUD service functions
 export const generateMonthlyInvoicesNow = httpsCallable(functions, 'generateMonthlyInvoicesNow');
 export const deleteInvoiceFunction = httpsCallable<{ invoiceId: string }, void>(functions, 'deleteInvoice');
+export const getTenantInvoices = httpsCallable <
+  { tenantId: string; startDate?: string; endDate?: string; limit?: number; lastDocId?: string | null },
+  { invoices: Invoice[]; lastDocId: string | null; hasMore: boolean; count: number }
+>(functions, 'getTenantInvoices');
 
 //tenant CRUD service functions
 export const addTenantFunction = httpsCallable<Omit<Tenant, 'id' | 'joinDate'>, { id: string }>(functions, 'addTenant');
