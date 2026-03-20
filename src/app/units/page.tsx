@@ -368,14 +368,14 @@ export default function UnitsPage() {
         <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-3 flex items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500" />
-            <span className="text-sm text-muted-foreground">Available Units</span>
-            <span className="text-sm font-semibold">{dashboardSettings?.availableUnits ?? "—"}</span>
+            <span className="text-lg text-muted-foreground">Available Units</span>
+            <span className="text-lg font-semibold">{dashboardSettings?.availableUnits ?? "—"}</span>
           </div>
           <div className="w-px h-4 bg-border" />
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-primary" />
-            <span className="text-sm text-muted-foreground">Total Units</span>
-            <span className="text-sm font-semibold">{dashboardSettings?.totalUnits ?? "—"}</span>
+            <span className="text-lg text-muted-foreground">Total Units</span>
+            <span className="text-lg font-semibold">{dashboardSettings?.totalUnits ?? "—"}</span>
           </div>
         </div>
       </div>

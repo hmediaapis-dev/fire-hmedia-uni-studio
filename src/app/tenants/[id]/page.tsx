@@ -13,7 +13,9 @@ import {
   FileText,
   ArrowLeft,
   Pencil,
-  Trash2
+  Trash2,
+  Mail,
+  Phone
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -285,17 +287,38 @@ export default function TenantDetailPage() {
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-6">
             {/* Contact Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                {tenant.email && <p className="text-sm text-muted-foreground">{tenant.email}</p>}
-                {tenant.phone && <p className="text-sm text-muted-foreground">{tenant.phone}</p>}
-              </div>
-              <div className="text-right">
-                {tenant.address && (
-                  <p className="text-sm text-muted-foreground flex items-center justify-end gap-2">
-                    <Home className="h-4 w-4" />
-                    {tenant.address}
-                  </p>
+            <div className="rounded-lg border p-6">
+
+              {/* Address — large */}
+              {tenant.address && (
+                <div className="border rounded-lg p-4 mb-3 flex gap-3">
+                  <Home className="h-5 w-5 text-muted-foreground mt-1 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Address</p>
+                    <p className="text-2xl font-medium leading-tight">{tenant.address}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Phone + Email */}
+              <div className="grid grid-cols-2 gap-2">
+                {tenant.phone && (
+                  <div className="border rounded-md p-3 flex gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Phone</p>
+                      <p className="text-lg font-medium">{tenant.phone}</p>
+                    </div>
+                  </div>
+                )}
+                {tenant.email && (
+                  <div className="border rounded-md p-3 flex gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Email</p>
+                      <p className="text-base font-medium break-words">{tenant.email}</p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
