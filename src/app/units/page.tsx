@@ -56,7 +56,7 @@ function ProrateButton() {
 
   return (
     <button
-      // onClick={() => console.log("Button clicked")}
+      // onClick={() => console.log("Button clicked")} /*
       onClick={handleClick}
       className="inline-flex items-center justify-center rounded-md text-md font-medium bg-primary text-primary-foreground px-5 py-2 hover:bg-primary/90"
     >

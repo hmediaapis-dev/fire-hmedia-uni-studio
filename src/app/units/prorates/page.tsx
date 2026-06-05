@@ -67,6 +67,8 @@ export default function ProratesPage() {
     });
   }, [units, searchTerm]);
 
+// Helper functions for proration calculation
+
   const calculateDailyRate = (rent: number) => {
     return rent / daysInCurrentMonth;
   };
