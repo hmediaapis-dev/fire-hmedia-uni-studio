@@ -58,10 +58,13 @@ export default function ProratesPage() {
   }, [toast]);
 
   const filteredUnits = useMemo(() => {
-    return units.filter(unit => 
-      unit.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      unit.size.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return units.filter(unit => {
+      const isAvailable = unit.status === 'available';
+      const matchesSearch = 
+        unit.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        unit.size.toLowerCase().includes(searchTerm.toLowerCase());
+      return isAvailable && matchesSearch;
+    });
   }, [units, searchTerm]);
 
   const calculateDailyRate = (rent: number) => {
@@ -87,7 +90,7 @@ export default function ProratesPage() {
           </Button>
           <h2 className="text-3xl font-bold tracking-tight">Unit Prorates</h2>
           <p className="text-muted-foreground">
-            Quick reference for unit costs and mid-month move-in calculations.
+            Quick reference for available unit costs and mid-month move-in calculations.
           </p>
         </div>
       </div>
@@ -123,7 +126,7 @@ export default function ProratesPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search unit number or size..."
+            placeholder="Search available units..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -155,7 +158,7 @@ export default function ProratesPage() {
             ) : filteredUnits.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  No units found.
+                  No available units found.
                 </TableCell>
               </TableRow>
             ) : (
@@ -169,7 +172,7 @@ export default function ProratesPage() {
                     <TableCell>{unit.size}</TableCell>
                     <TableCell>
                       <Badge 
-                        variant={unit.status === 'available' ? 'secondary' : 'outline'}
+                        variant="secondary"
                         className="capitalize"
                       >
                         {unit.status}
