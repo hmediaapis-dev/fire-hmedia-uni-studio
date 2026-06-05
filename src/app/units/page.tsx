@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from '@/components/ui/input';
 import { TenantSearchPicker } from '@/components/TenantSearchPicker';
 import { getSettings, updateSettings } from '@/services/settings';  //services, may not need this if you know the base command
+import { useParams, useRouter } from "next/navigation";
 
 type DashboardSettings = {
   id: "dashboard";
@@ -42,6 +43,27 @@ type DashboardSettings = {
   totalUnits: number;
   // ...any other fields already in there
 };    //prob did not need this if type is imported
+
+function ProrateButton() {
+  // 1. Initialize the navigate function
+  //const params = useParams();
+  const router = useRouter();
+
+  function handleClick() {
+    // 2. Pass the target path to navigate
+    router.push("/units/prorates"); 
+  }
+
+  return (
+    <button
+      // onClick={() => console.log("Button clicked")}
+      onClick={handleClick}
+      className="inline-flex items-center justify-center rounded-md text-md font-medium bg-primary text-primary-foreground px-5 py-2 hover:bg-primary/90"
+    >
+      Prorates
+    </button>
+  );
+}
 
 export default function UnitsPage() {
   const { toast } = useToast();
@@ -367,6 +389,9 @@ export default function UnitsPage() {
         {/* Sticky Footer */}
         <div className="sticky bottom-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-3 flex items-center gap-6">
           <div className="flex items-center gap-2">
+              <ProrateButton />
+          </div>
+          <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-green-500" />
             <span className="text-lg text-muted-foreground">Available Units</span>
             <span className="text-lg font-semibold">{dashboardSettings?.availableUnits ?? "—"}</span>
@@ -378,6 +403,7 @@ export default function UnitsPage() {
             <span className="text-lg font-semibold">{dashboardSettings?.totalUnits ?? "—"}</span>
           </div>
         </div>
+        
       </div>
 
       {/* Assign Tenant Dialog */}
