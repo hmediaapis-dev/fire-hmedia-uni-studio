@@ -1,12 +1,13 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,7 +57,7 @@ function ProrateButton() {
 
   return (
     <button
-      // onClick={() => console.log("Button clicked")} /*
+      // onClick={() => console.log("Button clicked")}
       onClick={handleClick}
       className="inline-flex items-center justify-center rounded-md text-md font-medium bg-primary text-primary-foreground px-5 py-2 hover:bg-primary/90"
     >
@@ -69,6 +70,7 @@ export default function UnitsPage() {
   const { toast } = useToast();
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Dialog states
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -102,6 +104,7 @@ export default function UnitsPage() {
       if (savedDashboardSettings) {
         setDashboardSettings(savedDashboardSettings);
       }
+      // Sort units numerically/alphabetically by name
       const sortedUnits = unitsData.sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -121,6 +124,17 @@ export default function UnitsPage() {
   useEffect(() => {
     loadUnits();
   }, []);
+
+  const filteredUnits = units.filter((unit) => {
+    const search = searchTerm.toLowerCase();
+  
+    return (
+      unit.name?.toLowerCase().includes(search) ||
+      unit.tenantName?.toLowerCase().includes(search) ||
+      unit.size?.toLowerCase().includes(search) ||
+      unit.gateCode?.toLowerCase().includes(search)
+    );
+  });
 
   const handleAssignTenantClick = (unit: Unit) => {
     setSelectedUnit(unit);
@@ -264,6 +278,13 @@ export default function UnitsPage() {
               <p className="text-muted-foreground">View and manage all your units.</p>
             </div>
 
+            <div className="flex items-center gap-4 mb-4">
+              <Input
+                placeholder="Search unit, tenant...."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
             {/* Add Unit Dialog */}
             <Dialog open={isAddUnitDialogOpen} onOpenChange={setIsAddUnitDialogOpen}>
               <DialogTrigger asChild>
@@ -303,86 +324,114 @@ export default function UnitsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
-          {/* Units Grid */}
+          {/* Units Table */}
           {isLoading ? (
             <p>Loading units from Firestore...</p>
           ) : units.length === 0 ? (
             <p className="text-muted-foreground p-4">No units found. Add one to get started.</p>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {units.map((unit) => (
-                <Card key={unit.id} className={cn('flex flex-col', getStatusClass(unit.status))}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-lg font-bold">{unit.name}</CardTitle>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onSelect={() => handleEditClick(unit)}>Edit Unit</DropdownMenuItem>
-                        {unit.status === 'rented' ? (
-                          <>
-                            <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                              Re-assign Tenant
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUnassignClick(unit)}>
-                              Unassign Tenant
-                            </DropdownMenuItem>
-                          </>
-                        ) : (
-                          <DropdownMenuItem onClick={() => handleAssignTenantClick(unit)}>
-                            Assign Tenant
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive" onSelect={() => handleDeleteClick(unit)}>
-                          Delete Unit
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <div className="flex justify-between items-center mb-4">
-                      <Badge variant={getStatusBadgeVariant(unit.status)} className="capitalize">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Unit</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Gate Code</TableHead>
+                  <TableHead className="text-right">Rent</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {filteredUnits.map((unit) => (
+                  <TableRow key={unit.id}>
+                    <TableCell className="font-medium">
+                      {unit.name}
+                    </TableCell>
+
+                    <TableCell>
+                      <Badge
+                        variant={getStatusBadgeVariant(unit.status)}
+                        className={`capitalize ${unit.status === 'available' ? 'bg-green-500 text-white hover:bg-green-700' : ''}`}
+                        >
                         {unit.status}
                       </Badge>
-                      <div className="text-xl font-semibold">
-                        ${unit.rent.toFixed(2)}
-                        <span className="text-sm font-normal text-muted-foreground">/mo</span>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Size: {unit.size}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Gate Code: <span className="font-mono">{unit.gateCode}</span>
-                    </p>
-                  </CardContent>
-                  <CardFooter>
-                    {unit.status === 'rented' && unit.tenantId && (
-                      <div className="flex items-center text-sm">
-                        <User className="h-4 w-4 mr-2 text-primary" />
-                        <span>{unit.tenantName ?? unit.tenantId}</span>
-                      </div>
-                    )}
-                    {unit.status === 'maintenance' && (
-                      <div className="flex items-center text-sm text-yellow-600 dark:text-yellow-400">
-                        <Wrench className="h-4 w-4 mr-2" />
-                        <span>Under Maintenance</span>
-                      </div>
-                    )}
-                    {unit.status === 'available' && (
-                      <div className="flex items-center text-sm text-green-600 dark:text-green-400">
-                        <span>Available for rent</span>
-                      </div>
-                    )}
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
+                    </TableCell>
+
+                    <TableCell>
+                      {unit.status === "rented"
+                        ? unit.tenantName ?? unit.tenantId
+                        : "-"}
+                    </TableCell>
+
+                    <TableCell>{unit.size}</TableCell>
+
+                    <TableCell>
+                      <span className="font-mono">{unit.gateCode}</span>
+                    </TableCell>
+
+                    <TableCell className="text-right">
+                      ${unit.rent.toFixed(2)}
+                    </TableCell>
+
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+
+                          <DropdownMenuItem
+                            onSelect={() => handleEditClick(unit)}
+                          >
+                            Edit Unit
+                          </DropdownMenuItem>
+
+                          {unit.status === "rented" ? (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleAssignTenantClick(unit)}
+                              >
+                                Re-assign Tenant
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                onClick={() => handleUnassignClick(unit)}
+                              >
+                                Unassign Tenant
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => handleAssignTenantClick(unit)}
+                            >
+                              Assign Tenant
+                            </DropdownMenuItem>
+                          )}
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onSelect={() => handleDeleteClick(unit)}
+                          >
+                            Delete Unit
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
 

@@ -68,7 +68,6 @@ export default function ProratesPage() {
   }, [units, searchTerm]);
 
 // Helper functions for proration calculation
-
   const calculateDailyRate = (rent: number) => {
     return rent / daysInCurrentMonth;
   };
@@ -174,8 +173,8 @@ export default function ProratesPage() {
                     <TableCell>{unit.size}</TableCell>
                     <TableCell>
                       <Badge 
-                        variant="secondary"
-                        className="capitalize"
+                        /*variant="secondary"*/
+                        className="capitalize bg-green-500 text-white hover:bg-green-700"
                       >
                         {unit.status}
                       </Badge>
