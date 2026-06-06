@@ -26,6 +26,18 @@ export type Unit = {
   tenantName?: string; // Name of the tenant (optional)
 };
 
+// The subcollection entry: units/{unitId}/history/{entryId}
+// history is a subcollection, NOT stored on this document
+// It lives at units/{unitId}/history
+export type UnitHistoryEntry = {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  action: 'moved_in' | 'moved_out' | 'transferred';
+  recordedAt: Date;
+  notes?: string; // optional, e.g. "early termination", "eviction"
+};
+
 export type Invoice = {
   id: string;
   invoiceNumber: number;

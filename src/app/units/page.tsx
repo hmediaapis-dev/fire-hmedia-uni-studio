@@ -157,6 +157,22 @@ export default function UnitsPage() {
     setIsDeleteDialogOpen(true);
   };
 
+  const handleAssignTenant = async () => {
+    if (!selectedUnit || !selectedTenant) return;
+    try {
+      const oldTenantId = selectedUnit.tenantId;
+      await assignTenantToUnit(selectedUnit.id, selectedTenant.id, selectedTenant.name, oldTenantId);
+      await loadUnits();
+      setIsAssignDialogOpen(false);
+      setSelectedUnit(null);
+      setSelectedTenant(null);
+      toast({ title: "Success", description: "Tenant assigned successfully." });
+    } catch (error) {
+      console.error("Failed to assign tenant:", error);
+      toast({ title: "Error", description: "Could not assign tenant.", variant: "destructive" });
+    }
+  };
+
   const handleConfirmUnassign = async () => {
     if (!unitToUnassign || !unitToUnassign.tenantId) return;
     try {
@@ -184,22 +200,6 @@ export default function UnitsPage() {
     } finally {
       setIsDeleteDialogOpen(false);
       setUnitToDelete(null);
-    }
-  };
-
-  const handleAssignTenant = async () => {
-    if (!selectedUnit || !selectedTenant) return;
-    try {
-      const oldTenantId = selectedUnit.tenantId;
-      await assignTenantToUnit(selectedUnit.id, selectedTenant.id, selectedTenant.name, oldTenantId);
-      await loadUnits();
-      setIsAssignDialogOpen(false);
-      setSelectedUnit(null);
-      setSelectedTenant(null);
-      toast({ title: "Success", description: "Tenant assigned successfully." });
-    } catch (error) {
-      console.error("Failed to assign tenant:", error);
-      toast({ title: "Error", description: "Could not assign tenant.", variant: "destructive" });
     }
   };
 

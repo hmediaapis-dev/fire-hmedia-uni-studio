@@ -1,8 +1,9 @@
 import { db } from '@/lib/firebase';
-import type { Unit, Tenant } from '@/types';
+import type { Unit, UnitHistoryEntry, Tenant } from '@/types';
 import type { Settings, DashboardSettings } from '@/types';
 import {
   collection,
+  getDoc,
   getDocs,
   doc,
   updateDoc,
@@ -122,6 +123,15 @@ export async function assignTenantToUnit(unitId: string, tenantId: string, tenan
         batch.update(oldTenantRef, { units: arrayRemove(unitId) });
     }
 
+    // Log the new tenant moving in
+    const moveInRef = doc(collection(db, 'units', unitId, 'history'));
+    batch.set(moveInRef, {
+        tenantId,
+        tenantName,
+        action: 'moved_in',
+        recordedAt: new Date(),
+    } satisfies Omit<UnitHistoryEntry, 'id'>);
+
     await batch.commit();
 
     const dashboardUpdate = {
@@ -134,6 +144,19 @@ export async function unassignTenantFromUnit(unitId: string, tenantId: string): 
     const batch = writeBatch(db);
     const unitRef = doc(db, 'units', unitId);
     const tenantRef = doc(db, 'tenants', tenantId);
+
+    // Read current unit data so we can record the full history entry
+    const tenantSnap = await getDoc(tenantRef);
+    const tenantData = tenantSnap.data() as Tenant;
+
+    // Close out history entry for this tenant
+    const historyRef = doc(collection(db, 'units', unitId, 'history'));
+    batch.set(historyRef, {
+        tenantId,
+        tenantName: tenantData.name ?? 'Unknown',
+        action: 'moved_out',
+        recordedAt: new Date(),
+    } satisfies Omit<UnitHistoryEntry, 'id'>);
 
     // Update unit status and remove tenantId and startDate
     batch.update(unitRef, { 
