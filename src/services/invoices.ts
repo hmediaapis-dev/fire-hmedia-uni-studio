@@ -73,3 +73,4 @@ export async function adjustTenantBalance(tenantId: string, amount: number): Pro
 export async function deleteInvoice(invoiceId: string): Promise<void> {
     await deleteInvoiceFunction({ invoiceId });
 }
+// blank to update can delete
