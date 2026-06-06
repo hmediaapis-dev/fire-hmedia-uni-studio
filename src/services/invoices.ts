@@ -11,6 +11,9 @@ import {
   QueryDocumentSnapshot,
   DocumentData,
   WithFieldValue,
+  query,
+  where,
+  increment
 } from 'firebase/firestore';
 import { deleteInvoiceFunction } from './functions';
 
@@ -50,9 +53,21 @@ export async function getInvoices(): Promise<Invoice[]> {
   return snapshot.docs.map((doc) => doc.data());
 }
 
+export async function getInvoicesByTenant(tenantId: string): Promise<Invoice[]> {
+  const invoicesCol = collection(db, 'invoices').withConverter(invoiceConverter);
+  const q = query(invoicesCol, where('tenantId', '==', tenantId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => doc.data());
+}
+
 export async function updateInvoice(invoiceId: string, data: Partial<Omit<Invoice, 'id'>>): Promise<void> {
     const invoiceRef = doc(db, 'invoices', invoiceId).withConverter(invoiceConverter);
     await updateDoc(invoiceRef, data);
+}
+
+export async function adjustTenantBalance(tenantId: string, amount: number): Promise<void> {
+  const tenantRef = doc(db, 'tenants', tenantId);
+  await updateDoc(tenantRef, { balance: increment(-amount) });
 }
 
 export async function deleteInvoice(invoiceId: string): Promise<void> {
