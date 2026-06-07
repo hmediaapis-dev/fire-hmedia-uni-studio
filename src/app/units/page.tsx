@@ -398,12 +398,6 @@ export default function UnitsPage() {
                           {unit.status === "rented" ? (
                             <>
                               <DropdownMenuItem
-                                onClick={() => handleAssignTenantClick(unit)}
-                              >
-                                Re-assign Tenant
-                              </DropdownMenuItem>
-
-                              <DropdownMenuItem
                                 onClick={() => handleUnassignClick(unit)}
                               >
                                 Unassign Tenant
