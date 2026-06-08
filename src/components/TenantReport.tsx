@@ -166,15 +166,9 @@ export function TenantReport({
               
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-gray-600">Balance</CardTitle>
+                  <CardTitle className="text-sm font-medium text-gray-600"></CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${balance > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    {formatCurrency(balance)}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {balance > 0 ? 'Outstanding' : 'Paid in full'}
-                  </p>
                 </CardContent>
               </Card>
             </div>
