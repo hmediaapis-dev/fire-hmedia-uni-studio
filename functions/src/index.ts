@@ -502,8 +502,10 @@ const {
         return {
         id: doc.id,
         ...data,
-        dueDate: data.dueDate?.toDate?.() ?? null, // serialize for client
-        createdAt: data.createdAt?.toDate?.() ?? null,
+        //dueDate: data.dueDate?.toDate?.() ?? null, // serialize for client  //changed for report
+        //createdAt: data.createdAt?.toDate?.() ?? null,                      //changed for report
+        dueDate: data.dueDate?.toDate?.()?.toISOString() ?? null,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
         };
     });
 

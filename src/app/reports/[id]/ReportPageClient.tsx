@@ -38,7 +38,7 @@ export default function ReportPageClient({
       try {
         setIsLoading(true);
         setError(null);
-
+    
         // All three calls are scoped to this tenant — no full collection reads
         const [tenantData, paymentsData, invoicesResult] = await Promise.all([
           getTenant(tenantId),
@@ -51,28 +51,42 @@ export default function ReportPageClient({
             }),
           }),
         ]);
-
+    
         if (!tenantData) {
           setError('Tenant not found');
           return;
         }
-
+    
         setTenant(tenantData);
+    
+        // Invoices come from a Cloud Function as plain JSON — normalize dueDate to Date
+        const normalizedInvoices = (invoicesResult.data.invoices ?? []).map(inv => ({
+          ...inv,
+          dueDate: inv.dueDate ? new Date(inv.dueDate) : new Date(0),
+        }));
 
-        // Invoices come back already filtered by tenant and date from the cloud function
-        setInvoices(invoicesResult.data.invoices ?? []);
-
+        setInvoices(normalizedInvoices);
+    
+        // Payments may come back as Firestore Timestamps or plain strings — normalize both
+        const normalizedPayments = paymentsData.map(p => ({
+          ...p,
+          paymentDate: p.paymentDate instanceof Date
+            ? p.paymentDate
+            : (p.paymentDate as any)?.toDate?.() ?? new Date(p.paymentDate as any),
+        }));
+    
         // Filter payments by date range client-side if needed
         // (getPaymentsByTenant doesn't support date filtering yet — add it to the
         //  service/cloud function later if report performance becomes a concern)
         const filteredPayments = dateRange
-          ? paymentsData.filter(
+          ? normalizedPayments.filter(
               (p) =>
                 p.paymentDate >= dateRange.from && p.paymentDate <= dateRange.to
             )
-          : paymentsData;
-
+          : normalizedPayments;
+    
         setPayments(filteredPayments);
+        
       } catch (err) {
         console.error('Failed to fetch report data:', err);
         setError('Failed to load report data.');
